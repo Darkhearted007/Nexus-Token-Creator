@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default deny for all unseen collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /tokens/{tokenId} {
+      // Anyone can read trending tokens
+      allow read: if true;
+      
+      // Strict rule: Only allow token creation if the payload has correct fields
+      // and prevent overwhelming DB writes via custom constraints.
+      allow create: if request.resource.data.keys().hasAll(['mintAddress', 'creatorWallet', 'name', 'symbol'])
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 50;
+                    
+      // Only allow upvotes to be modified to prevent malicious overwrites of the metadata
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes']);
+      
+      allow delete: if false; // Only admin backend can delete
+    }
+  }
+}
