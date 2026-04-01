@@ -10,7 +10,9 @@ import {
   CheckCircle2, 
   Loader2,
   Trash2,
-  Plus
+  Plus,
+  Info,
+  ChevronRight
 } from 'lucide-react';
 
 export default function AirdropPage() {

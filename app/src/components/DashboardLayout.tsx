@@ -15,11 +15,8 @@ import {
   X,
   Droplets,
   ChevronLeft,
-  Airdrop,
   Zap,
   Building2,
-  Droplets,
-  Coins,
 } from 'lucide-react';
 
 const Airdrop = (props: any) => (
