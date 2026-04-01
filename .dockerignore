@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+target
+dist
+build
+.env
+.env.local
+.firebase
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+docker-compose.override.yml

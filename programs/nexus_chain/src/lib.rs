@@ -11,11 +11,20 @@ pub mod nexus_chain {
         let config = &mut ctx.accounts.config;
         config.admin = ctx.accounts.admin.key();
         config.total_fees_collected = 0;
+        config.paused = false;
         msg!("Config initialized. Admin is set to: {:?}", config.admin);
         Ok(())
     }
 
+    pub fn set_paused(ctx: Context<UpdateConfig>, paused: bool) -> Result<()> {
+        let config = &mut ctx.accounts.config;
+        config.paused = paused;
+        msg!("Program paused state set to: {}", paused);
+        Ok(())
+    }
+
     pub fn collect_fee(ctx: Context<CollectFee>, amount: u64) -> Result<()> {
+        require!(!ctx.accounts.config.paused, ErrorCode::ProgramPaused);
         let cpi_context = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
             Transfer {
@@ -33,6 +42,7 @@ pub mod nexus_chain {
     }
 
     pub fn withdraw_fees(ctx: Context<WithdrawFees>, amount: u64) -> Result<()> {
+        require!(!ctx.accounts.config.paused, ErrorCode::ProgramPaused);
         require!(ctx.accounts.admin.key() == ctx.accounts.config.admin, ErrorCode::Unauthorized);
         require!(ctx.accounts.vault.lamports() >= amount, ErrorCode::InsufficientFunds);
 
@@ -64,6 +74,18 @@ pub struct InitializeConfig<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateConfig<'info> {
+    #[account(
+        mut,
+        seeds = [b"config"],
+        bump,
+        has_one = admin
+    )]
+    pub config: Account<'info, Config>,
+    pub admin: Signer<'info>,
 }
 
 #[derive(Accounts)]
@@ -109,6 +131,7 @@ pub struct WithdrawFees<'info> {
 pub struct Config {
     pub admin: Pubkey,
     pub total_fees_collected: u64,
+    pub paused: bool,
 }
 
 #[error_code]
@@ -117,4 +140,6 @@ pub enum ErrorCode {
     Unauthorized,
     #[msg("Insufficient funds in the vault to withdraw.")]
     InsufficientFunds,
+    #[msg("The program is currently paused.")]
+    ProgramPaused,
 }

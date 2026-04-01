@@ -1,44 +1,52 @@
+import * as anchor from "@coral-xyz/anchor";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import dotenv from "dotenv";
+import * as fs from "fs";
+import path from "path";
 
 dotenv.config();
 
-// The Program ID specified in programs/nexus_chain/src/lib.rs
+// Load the IDL to interact with the program
+const IDL_PATH = path.resolve(__dirname, "../../../target/idl/nexus_chain.json");
+const IDL = JSON.parse(fs.readFileSync(IDL_PATH, "utf8"));
+
 const PROGRAM_ID = new PublicKey("5hA4DvFa82zJS6yx5ahdb2HEKvmMx4zJeXTyZaWTA5A8");
 
 async function withdrawFees(amountLamports: number) {
-    const connection = new Connection(process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com", "confirmed");
+    const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
+    const connection = new Connection(rpcUrl, "confirmed");
     
-    // The admin wallet that holds the authority to withdraw fees
     const adminKey = process.env.ADMIN_PRIVATE_KEY;
     if (!adminKey) {
         console.error("❌ ADMIN_PRIVATE_KEY is missing in .env");
-        console.error("Please add ADMIN_PRIVATE_KEY=<your-base58-secret> to your backend/.env");
         return;
     }
-    const adminWallet = Keypair.fromSecretKey(bs58.decode(adminKey));
 
-    // 1. Derive the Config PDA (stores the admin pubkey)
+    const adminWallet = Keypair.fromSecretKey(bs58.decode(adminKey));
+    const wallet = new anchor.Wallet(adminWallet);
+    const provider = new anchor.AnchorProvider(connection, wallet, {
+        preflightCommitment: "confirmed",
+    });
+
+    const program = new anchor.Program(IDL as anchor.Idl, provider);
+
+    // 1. Derive PDAs
     const [configPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("config")],
         PROGRAM_ID
     );
 
-    // 2. Derive the Vault PDA (where the collected SOL fees are stored securely)
     const [vaultPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("vault")],
         PROGRAM_ID
     );
 
-    console.log(`[Admin] Preparing to withdraw ${amountLamports} lamports from Vault to Admin`);
-    console.log(`- Admin Wallet: ${adminWallet.publicKey.toBase58()}`);
-    console.log(`- Config PDA:   ${configPda.toBase58()}`);
-    console.log(`- Vault PDA:    ${vaultPda.toBase58()}`);
+    console.log(`🚀 Initiating withdrawal of ${amountLamports / 1e9} SOL...`);
+    console.log(`- Admin: ${adminWallet.publicKey.toBase58()}`);
+    console.log(`- Vault: ${vaultPda.toBase58()}`);
 
-    // In a fully built Anchor DApp, you typically use the Anchor Provider / Program wrapper 
-    // to execute this safely and cleanly:
-    /*
+    try {
         const tx = await program.methods
             .withdrawFees(new anchor.BN(amountLamports))
             .accounts({
@@ -48,11 +56,13 @@ async function withdrawFees(amountLamports: number) {
             })
             .signers([adminWallet])
             .rpc();
-    */
 
-    console.log(`[Admin] This script demonstrates the required addresses.`);
-    console.log(`[Admin] Next Step: Once the smart contract is deployed, use this logic to pull your fees!`);
+        console.log(`✅ Success! Transaction Signature: ${tx}`);
+    } catch (err) {
+        console.error("❌ Withdrawal failed:");
+        console.error(err);
+    }
 }
 
-// Example usage: withdraw 1 SOL (1,000,000,000 lamports)
-withdrawFees(1_000_000_000).catch(console.error);
+// Example: Withdraw 0.1 SOL
+withdrawFees(100_000_000).catch(console.error);

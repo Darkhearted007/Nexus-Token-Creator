@@ -22,7 +22,7 @@ const TREASURY_WALLET = new PublicKey(
   process.env.NEXT_PUBLIC_TREASURY_WALLET ?? "5hA4DvFa82zJS6yx5ahdb2HEKvmMx4zJeXTyZaWTA5A8"
 );
 const PROTOCOL_FEE_LAMPORTS = 0.1 * 10 ** 9; // 0.1 SOL Base Fee
-const VOLUME_BOT_FEE_LAMPORTS = 1.0 * 10 ** 9; // 1.0 SOL Premium feature fee
+
 
 // Export so the frontend WalletContextProvider can consume the same RPC
 export const SOLANA_RPC_URL =

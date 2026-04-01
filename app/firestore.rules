@@ -11,14 +11,28 @@ service cloud.firestore {
       // Anyone can read trending tokens
       allow read: if true;
       
-      // Strict rule: Only allow token creation if the payload has correct fields
-      // and prevent overwhelming DB writes via custom constraints.
-      allow create: if request.resource.data.keys().hasAll(['mintAddress', 'creatorWallet', 'name', 'symbol'])
-                    && request.resource.data.name.size() > 0
-                    && request.resource.data.name.size() <= 50;
+      // Strict rule: Only allow token creation if the payload has correct types and constraints
+      allow create: if request.resource.data.keys().hasAll(['mintAddress', 'creatorWallet', 'name', 'symbol', 'decimals', 'supply', 'hasVolumeBot', 'upvotes', 'createdAt'])
+                    && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 64
+                    && request.resource.data.symbol is string && request.resource.data.symbol.size() > 0 && request.resource.data.symbol.size() <= 12
+                    && request.resource.data.mintAddress is string && request.resource.data.mintAddress.size() >= 32 && request.resource.data.mintAddress.size() <= 44
+                    && request.resource.data.creatorWallet is string && request.resource.data.creatorWallet.size() >= 32 && request.resource.data.creatorWallet.size() <= 44
+                    && request.resource.data.decimals is int && request.resource.data.decimals >= 0 && request.resource.data.decimals <= 18
+                    && request.resource.data.supply is number && request.resource.data.supply > 0
+                    && request.resource.data.hasVolumeBot is bool
+                    && request.resource.data.upvotes == 0
+                    && request.resource.data.createdAt == request.time
+                    // Optional bot tiers validation
+                    && (!('volumeBotTier' in request.resource.data) || request.resource.data.volumeBotTier in [0, 0.1, 0.3, 0.5])
+                    && (!('sniperBotTier' in request.resource.data) || request.resource.data.sniperBotTier in [0, 0.1, 0.3, 0.5])
+                    // Social links (optional strings)
+                    && (!('website' in request.resource.data) || (request.resource.data.website is string && request.resource.data.website.size() <= 200))
+                    && (!('twitter' in request.resource.data) || (request.resource.data.twitter is string && request.resource.data.twitter.size() <= 200))
+                    && (!('telegram' in request.resource.data) || (request.resource.data.telegram is string && request.resource.data.telegram.size() <= 200));
                     
-      // Only allow upvotes to be modified to prevent malicious overwrites of the metadata
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes']);
+      // Only allow upvotes to be incremented to prevent malicious overwrites
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes'])
+                    && request.resource.data.upvotes == resource.data.upvotes + 1;
       
       allow delete: if false; // Only admin backend can delete
     }

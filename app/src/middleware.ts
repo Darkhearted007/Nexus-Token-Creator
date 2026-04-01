@@ -8,10 +8,10 @@ const rateLimitMap = new Map<string, { count: number; lastReset: number }>();
 const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
 const MAX_REQUESTS_PER_MINUTE = 100;
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   // Apply rate limiting to explicit API routes and webhooks
   if (request.nextUrl.pathname.startsWith('/api')) {
-    const ip = request.headers.get('x-forwarded-for') ?? 'anonymous';
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? 'anonymous';
     const now = Date.now();
     let record = rateLimitMap.get(ip);
 
@@ -24,14 +24,18 @@ export function proxy(request: NextRequest) {
     rateLimitMap.set(ip, record);
 
     if (record.count > MAX_REQUESTS_PER_MINUTE) {
-      console.warn(`[Security] Blocked DDoS attempt from IP: ${ip}`);
+      console.warn(`[Security] 🛡️ Blocked Rate Limit Exceeded for IP: ${ip} at ${request.nextUrl.pathname}`);
       return new NextResponse(
-        JSON.stringify({ error: "Too Many Requests - Rate Limit Exceeded" }), 
+        JSON.stringify({ 
+          error: "Too Many Requests",
+          message: "Please wait a minute before trying again." 
+        }), 
         {
           status: 429,
           headers: {
             'Content-Type': 'application/json',
             'Retry-After': '60',
+            'X-RateLimit-Limit': MAX_REQUESTS_PER_MINUTE.toString(),
           },
         }
       );
@@ -41,7 +45,7 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Ensure middleware only runs on API paths to avoid slowing down static asset delivery
+// Standard Next.js Middleware configuration
 export const config = {
   matcher: '/api/:path*',
 };

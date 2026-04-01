@@ -50,7 +50,7 @@ export async function getTrendingTokens() {
   const q = query(tokensRef, orderBy("createdAt", "desc"), limit(10));
   
   const querySnapshot = await getDocs(q);
-  const tokens: any[] = [];
+  const tokens: Record<string, unknown>[] = [];
   querySnapshot.forEach((doc) => {
     tokens.push({ id: doc.id, ...doc.data() });
   });
