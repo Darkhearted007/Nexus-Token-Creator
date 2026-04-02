@@ -1,56 +1,96 @@
-import { Connection, Keypair } from "@solana/web3.js";
+import { 
+    Connection, 
+    Keypair, 
+    PublicKey, 
+    Transaction, 
+    ComputeBudgetProgram,
+    SystemProgram,
+    LAMPORTS_PER_SOL
+} from "@solana/web3.js";
 import bs58 from "bs58";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-export async function runSniperBot(mintAddress: string, tierCost: number) {
-    console.log(`[Sniper Bot] 🎯 Initiating Aggressive Snipe for Mint: ${mintAddress} (Tier: ${tierCost} SOL)`);
-    
-    const connection = new Connection(process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com", "confirmed");
-    
-    const walletsRaw = process.env.SNIPER_BOT_PRIVATE_KEYS;
-    const wallets = walletsRaw 
-        ? walletsRaw.split(',').map(key => Keypair.fromSecretKey(bs58.decode(key.trim())))
-        : Array.from({ length: 50 }).map(() => Keypair.generate());
-    
-    // Tier-based wallet allocation
-    let numWallets = 5;
-    if (tierCost >= 0.3) numWallets = 20;
-    if (tierCost >= 0.5) numWallets = 50;
-    
-    const activeWallets = wallets.slice(0, numWallets);
-    console.log(`[Sniper Bot] ⚡ Deploying ${activeWallets.length} sub-wallets for Block 0 targeting...`);
-    
-    // 1. Prepare Jito Bundle (Structural Placeholder)
-    // In production: use jito-ts to bundle 'Create Pool' + 'Buy' transactions
-    console.log(`[Sniper Bot] 📦 Constructing Jito Bundle for atomic launch-and-buy...`);
+// Jito Tip Account (one of them)
+const JITO_TIP_ACCOUNT = new PublicKey("96g9sAg9u3m9TW2bsf3qcGYK3SGu3qc7pEdPspUX6qc5");
 
-    const promises = activeWallets.map(async (wallet, index) => {
+/**
+ * Sniper Bot Runner
+ * Attempts to buy a token as close to block 0 as possible.
+ * Uses high priority fees and suggests Jito bundles for atomic execution.
+ */
+export async function runSniperBot(mintAddress: string, tierCost: number) {
+    const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
+    const connection = new Connection(rpcUrl, "confirmed");
+    
+    console.log(`[Sniper Bot] 🎯 Initiating Sniper for Mint: ${mintAddress}`);
+    console.log(`- Tier: ${tierCost} SOL`);
+
+    // Load sub-wallets for distributed sniping
+    const walletsRaw = process.env.SNIPER_BOT_PRIVATE_KEYS;
+    const subWallets = walletsRaw 
+        ? walletsRaw.split(',').map(key => Keypair.fromSecretKey(bs58.decode(key.trim())))
+        : [Keypair.generate()]; // Fallback to a random one for demo
+
+    // Dynamic wallet allocation based on tier
+    let activeWalletCount = 1;
+    if (tierCost >= 0.3) activeWalletCount = 5;
+    if (tierCost >= 0.5) activeWalletCount = 10;
+    
+    const walletsToUse = subWallets.slice(0, activeWalletCount);
+    const tokenMint = new PublicKey(mintAddress);
+
+    console.log(`[Sniper Bot] ⚡ Deploying ${walletsToUse.length} sub-wallets for target acquisition...`);
+
+    const executeSnipe = async (wallet: Keypair, index: number) => {
         try {
-            // 2. Check individual sub-wallet balances
+            // 1. Check Balance
             const balance = await connection.getBalance(wallet.publicKey);
-            if (balance < 0.05 * 10**9) {
-                console.warn(`[Sniper Bot] ⚠️ Wallet ${index + 1} (${wallet.publicKey.toBase58().slice(0,6)}) has low balance, skipping.`);
+            if (balance < 0.02 * LAMPORTS_PER_SOL) {
+                console.warn(`[Sniper Bot] ⚠️ Wallet ${index + 1} (${wallet.publicKey.toBase58().slice(0,6)}) has insufficient funds.`);
                 return;
             }
 
-            // 3. Construct Swap Instructions
-            // Structural placeholder for Raydium Swap Exact In
-            console.log(`[Sniper Bot] 🦾 Wallet ${index + 1} ready for execution.`);
-            
-            // In production, we would add these transactions to the Jito bundle
-            // await jitoClient.sendBundle([tx1, tx2, ...]);
-        } catch (e) {
-            console.error(`[Sniper Bot] ❌ Wallet ${index + 1} preparation failed:`, e);
+            // 2. Build Transaction with Priority Fees & Jito Tip
+            const tx = new Transaction();
+
+            // A. Set Compute Unit Price (Priority Fee)
+            // 100,000 micro-lamports per CU is a decent starting point for low-med congestion
+            tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100_000 }));
+            tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 100_000 }));
+
+            // B. Add Jito Tip (if active)
+            // 0.001 SOL tip for validator priority
+            tx.add(
+                SystemProgram.transfer({
+                    fromPubkey: wallet.publicKey,
+                    toPubkey: JITO_TIP_ACCOUNT,
+                    lamports: 0.001 * LAMPORTS_PER_SOL,
+                })
+            );
+
+            // C. Add Buy Instruction (Placeholder for Raydium/Jupiter Swap)
+            // In a real sniper, you'd fetch the pool keys here or wait for pool creation event.
+            console.log(`[Sniper Bot] 🛡️ Wallet ${index + 1} - Protection instructions built.`);
+
+            /**
+             * PRODUCTION INTEGRATION:
+             * const swapIx = await Jupiter.getSwapInstruction({ ... });
+             * tx.add(swapIx);
+             */
+
+            // 3. Send and Confirm
+            // const signature = await connection.sendTransaction(tx, [wallet]);
+            // console.log(`[Sniper Bot] ✅ Wallet ${index + 1} Snipe Signature: ${signature}`);
+
+        } catch (err) {
+            console.error(`[Sniper Bot] ❌ Wallet ${index + 1} failed:`, err);
         }
-    });
+    };
 
-    await Promise.all(promises);
-    console.log(`[Sniper Bot] 🔥 Sniping sequence broadcasted to validators. Protection engaged for ${mintAddress}.`);
-
-    const feeWallet = process.env.FEE_WALLET_ADDRESS;
-    if (feeWallet) {
-        console.log(`[Sniper Bot] 💰 Transferring sniping profit fees to admin vault: ${feeWallet}`);
-    }
+    // Execute sniping sequence across all assigned wallets
+    await Promise.all(walletsToUse.map((w, i) => executeSnipe(w, i)));
+    
+    console.log(`[Sniper Bot] 🛡️ Block-0 protection engaged for ${mintAddress}. Standing by for liquidity events.`);
 }

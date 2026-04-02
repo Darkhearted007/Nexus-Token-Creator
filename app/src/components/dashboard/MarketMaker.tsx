@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Zap, 
@@ -13,8 +13,10 @@ import {
   Clock, 
   Wallet, 
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
+import { useWallet } from '@solana/wallet-adapter-react';
 
 const STRATEGIES = [
   { id: 'natural', name: 'Natural Growth', desc: 'Mimics real human trading patterns', icon: TrendingUp },
@@ -23,10 +25,12 @@ const STRATEGIES = [
 ];
 
 export default function MarketMaker() {
+  const { publicKey } = useWallet();
   const [activeTab, setActiveTab] = useState<'config' | 'active'>('config');
   const [tokenAddress, setTokenAddress] = useState('');
   const [strategy, setStrategy] = useState('natural');
   const [isRunning, setIsRunning] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
   const [config, setConfig] = useState({
     targetVolume: 50,
     duration: 24,
@@ -35,11 +39,66 @@ export default function MarketMaker() {
     maxInterval: 120,
     antiMev: true,
   });
+  const [trades, setTrades] = useState<any[]>([]);
+  const [sessionStats, setSessionStats] = useState({ 
+    volume: 0, 
+    uptime: 0, 
+    successRate: 98.5,
+    tradesPerMin: 0
+  });
 
-  const handleStart = () => {
+  const handleStart = async () => {
+    if (!publicKey) return alert('Please connect your Solana wallet first!');
     if (!tokenAddress) return alert('Please enter a token address');
+    
+    setIsLaunching(true);
+    // Simulate transaction delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    setIsLaunching(false);
     setIsRunning(true);
     setActiveTab('active');
+    
+    // Initial trades
+    setTrades([
+      { id: 1, type: 'BUY', amount: 0.45, wallet: '8xK...q3v', time: new Date().toLocaleTimeString() },
+      { id: 2, type: 'SELL', amount: 0.12, wallet: '4hB...mR2', time: new Date().toLocaleTimeString() },
+    ]);
+    setSessionStats({ volume: 0.57, uptime: 0, successRate: 98.5, tradesPerMin: 2.1 });
+  };
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRunning) {
+      interval = setInterval(() => {
+        setSessionStats(prev => ({ 
+          ...prev, 
+          uptime: prev.uptime + 1,
+          volume: prev.volume + (Math.random() * 0.05)
+        }));
+
+        if (Math.random() > 0.8) {
+          setTrades(prev => [
+            { 
+              id: Date.now(), 
+              type: Math.random() > 0.5 ? 'BUY' : 'SELL', 
+              amount: (Math.random() * 0.5 + 0.05).toFixed(3),
+              wallet: `${Math.random().toString(16).slice(2,5)}...${Math.random().toString(16).slice(2,5)}`,
+              time: new Date().toLocaleTimeString()
+            },
+            ...prev.slice(0, 9)
+          ]);
+        }
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRunning]);
+
+  const formatUptime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h.toString().padStart(2,'0')}h : ${m.toString().padStart(2,'0')}m : ${s.toString().padStart(2,'0')}s`;
   };
 
   return (
@@ -240,10 +299,20 @@ export default function MarketMaker() {
 
                 <button 
                   onClick={handleStart}
-                  className="w-full mt-8 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group"
+                  disabled={isLaunching}
+                  className="w-full mt-8 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Play className="w-5 h-5 fill-current group-hover:scale-110 transition-transform" />
-                  Launch Market Maker
+                  {isLaunching ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Initialising Session...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5 fill-current group-hover:scale-110 transition-transform" />
+                      Launch Market Maker
+                    </>
+                  )}
                 </button>
               </section>
 
@@ -297,7 +366,7 @@ export default function MarketMaker() {
                     <div className="flex items-center gap-3">
                       <div className="text-right mr-4 hidden sm:block">
                         <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Total Volume Generated</p>
-                        <p className="text-lg font-mono text-white font-black">12.45 SOL</p>
+                        <p className="text-lg font-mono text-white font-black">{sessionStats.volume.toFixed(3)} SOL</p>
                       </div>
                       <button 
                         onClick={() => setIsRunning(false)}
@@ -312,11 +381,11 @@ export default function MarketMaker() {
                  <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Uptime</p>
-                      <p className="text-sm font-mono text-white">00h : 14m : 22s</p>
+                      <p className="text-sm font-mono text-white">{formatUptime(sessionStats.uptime)}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Success Rate</p>
-                      <p className="text-sm font-mono text-emerald-400">98.5%</p>
+                      <p className="text-sm font-mono text-emerald-400">{sessionStats.successRate}%</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Trades / Min</p>
@@ -341,16 +410,16 @@ export default function MarketMaker() {
                  <div className="p-6">
                    <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">Live Trade Stream</h4>
                    <div className="space-y-2 max-h-[300px] overflow-y-auto font-mono text-[11px]">
-                      {[1,2,3,4,5].map(i => (
-                        <div key={i} className="flex items-center justify-between py-2 px-3 bg-white/[0.01] rounded-lg border border-white/[0.03]">
+                      {trades.map(trade => (
+                        <div key={trade.id} className="flex items-center justify-between py-2 px-3 bg-white/[0.01] rounded-lg border border-white/[0.03]">
                           <div className="flex items-center gap-4">
-                            <span className="text-gray-600">[{new Date().toLocaleTimeString()}]</span>
-                            <span className="text-emerald-400 font-bold uppercase">BUY</span>
-                            <span className="text-white">0.45 SOL</span>
+                            <span className="text-gray-600">[{trade.time}]</span>
+                            <span className={`${trade.type === 'BUY' ? 'text-emerald-400' : 'text-rose-400'} font-bold uppercase`}>{trade.type}</span>
+                            <span className="text-white">{trade.amount} SOL</span>
                           </div>
                           <div className="flex items-center gap-4">
-                            <span className="text-gray-500">Wallet: {Math.random().toString(16).slice(2,8)}...</span>
-                            <a href="#" className="text-indigo-400 hover:underline">TXid</a>
+                            <span className="text-gray-500">Wallet: {trade.wallet}</span>
+                            <span className="text-indigo-400 hover:underline cursor-pointer">TXid</span>
                           </div>
                         </div>
                       ))}

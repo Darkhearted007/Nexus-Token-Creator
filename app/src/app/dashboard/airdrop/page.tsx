@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, 
   Users, 
@@ -12,32 +12,68 @@ import {
   Trash2,
   Plus,
   Info,
-  ChevronRight
+  ChevronRight,
+  Upload
 } from 'lucide-react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { PublicKey, Transaction } from '@solana/web3.js';
+import { parseAirdropFile, buildAirdropBatches } from '@/lib/solana/airdrop';
 
 export default function AirdropPage() {
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
   const [tokenAddress, setTokenAddress] = useState('');
   const [recipients, setRecipients] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showReview, setShowReview] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const recipientList = recipients.split('\n').filter(r => r.trim().length > 0);
-  const totalCost = (recipientList.length * 0.002).toFixed(4); // Simulated rent/fee
+  const recipientList = parseAirdropFile(recipients);
+  const totalCost = (recipientList.length * 0.002).toFixed(4); 
 
-  const handleAirdrop = () => {
-    if (!tokenAddress || recipientList.length === 0) return;
-    setIsProcessing(true);
-    // Simulate progress
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsProcessing(false);
-          return 100;
-        }
-        return prev + 5;
-      });
-    }, 200);
+  const handleAirdrop = async () => {
+    if (!publicKey) return alert('Please connect your Solana wallet!');
+    if (!tokenAddress || recipientList.length === 0) {
+      alert('Please provide a valid token address and at least one recipient.');
+      return;
+    }
+    setShowReview(true);
+  };
+
+  const executeConfirmedAirdrop = async () => {
+    try {
+      setShowReview(false);
+      setIsProcessing(true);
+      setProgress(0);
+
+      const mintPubkey = new PublicKey(tokenAddress);
+      
+      // 1. Build batches
+      const batches = await buildAirdropBatches(
+        connection,
+        publicKey!,
+        mintPubkey,
+        recipientList,
+        9
+      );
+
+      // 2. Execute batches
+      for (let i = 0; i < batches.length; i++) {
+        const tx = batches[i];
+        const signature = await sendTransaction(tx, connection);
+        await connection.confirmTransaction(signature, 'processed');
+        
+        const newProgress = Math.round(((i + 1) / batches.length) * 100);
+        setProgress(newProgress);
+      }
+
+      alert('Airdrop completed successfully!');
+    } catch (err) {
+      console.error('Airdrop failed:', err);
+      alert('Airdrop failed: ' + (err as Error).message);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -167,18 +203,87 @@ export default function AirdropPage() {
 
           <section className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-4">
              <div className="flex items-center gap-3">
-               <Info className="w-4 h-4 text-indigo-400" />
-               <p className="text-xs font-bold text-white uppercase tracking-tighter">Pro Tip</p>
+               <Upload className="w-4 h-4 text-indigo-400" />
+               <p className="text-xs font-bold text-white uppercase tracking-tighter">Bulk Upload</p>
              </div>
              <p className="text-[11px] text-gray-500 leading-relaxed">
-               You can upload a CSV file with your wallet list to automate large distributions.
+               Have a large list? Upload a CSV or TXT file following the "Address, Amount" format.
              </p>
-             <button className="text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:text-indigo-300 transition-colors flex items-center gap-1">
-               Download Template <ChevronRight className="w-3 h-3" />
-             </button>
+             <div className="grid grid-cols-2 gap-2">
+                <button 
+                  onClick={() => {
+                    // Simulate file pick
+                    const mockCSV = "5hA4Dv... 100\n7xKX... 50\n4hBt... 25";
+                    setRecipients(mockCSV);
+                  }}
+                  className="py-2 px-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:bg-indigo-500/20 transition-all"
+                >
+                  Upload File
+                </button>
+                <button className="py-2 px-3 rounded-lg bg-white/5 border border-white/10 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:bg-white/10 transition-all">
+                  Get Template
+                </button>
+             </div>
           </section>
         </div>
       </div>
+
+      {/* Review Modal Overlay */}
+      <AnimatePresence>
+        {showReview && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="dashboard-card max-w-lg w-full p-8 space-y-6"
+            >
+              <div className="flex items-center gap-4 border-b border-white/10 pb-6">
+                <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6 text-indigo-400" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Review Airdrop</h3>
+                  <p className="text-sm text-gray-500">Confirm recipients and network costs.</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Valid Recipients</span>
+                  <span className="text-white font-mono">{recipientList.length} wallets</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Total Tokens</span>
+                  <span className="text-white font-mono">
+                    {recipientList.reduce((s, r) => s + r.amount, 0).toLocaleString()} UNITS
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Network Processing Fee</span>
+                  <span className="text-emerald-400 font-mono font-bold">{totalCost} SOL</span>
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button 
+                  onClick={() => setShowReview(false)}
+                  className="flex-1 py-3.5 rounded-xl bg-white/5 border border-white/10 text-gray-300 font-bold hover:bg-white/10 transition-all"
+                >
+                  Edit List
+                </button>
+                <button 
+                  onClick={executeConfirmedAirdrop}
+                  className="flex-1 py-3.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-500 shadow-xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  Confirm & Send
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -8,12 +8,23 @@ import RecentTokensTable from '@/components/dashboard/RecentTokensTable';
 import BotMetricsCard from '@/components/dashboard/BotMetricsCard';
 import RevenueBreakdown from '@/components/dashboard/RevenueBreakdown';
 import ActivityFeed from '@/components/dashboard/ActivityFeed';
+import { getTrendingTokens } from '@/lib/firebase/firestore';
 
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
+  const [trendingTokens, setTrendingTokens] = useState<any[]>([]);
 
   useEffect(() => {
     setMounted(true);
+    const fetchTokens = async () => {
+      try {
+        const tokens = await getTrendingTokens();
+        setTrendingTokens(tokens);
+      } catch (err) {
+        console.error("Failed to fetch trending tokens:", err);
+      }
+    };
+    fetchTokens();
   }, []);
 
   if (!mounted) return null;
@@ -78,7 +89,7 @@ export default function DashboardPage() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <TokenTrendsChart />
-        <RecentTokensTable />
+        <RecentTokensTable tokens={trendingTokens as any} />
       </div>
 
       {/* Bottom Row */}

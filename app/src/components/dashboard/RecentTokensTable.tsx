@@ -21,8 +21,8 @@ const DEMO_TOKENS: TokenRow[] = [
   { id: '6', name: 'SolVault', symbol: 'SVLT', mintAddress: '3kPn...dF7c', totalRevenue: '12.90', status: 'completed' },
 ];
 
-export default function RecentTokensTable({ tokens }: { tokens?: TokenRow[] }) {
-  const displayTokens = tokens ?? DEMO_TOKENS;
+export default function RecentTokensTable({ tokens }: { tokens?: any[] }) {
+  const displayTokens = (tokens && tokens.length > 0) ? tokens : DEMO_TOKENS;
 
   return (
     <motion.div
@@ -52,7 +52,7 @@ export default function RecentTokensTable({ tokens }: { tokens?: TokenRow[] }) {
           <tbody>
             {displayTokens.map((token, i) => (
               <motion.tr
-                key={token.id}
+                key={token.id || token.mintAddress}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: 0.5 + i * 0.05 }}
@@ -71,7 +71,7 @@ export default function RecentTokensTable({ tokens }: { tokens?: TokenRow[] }) {
                 </td>
                 <td className="py-3 pr-4 hidden sm:table-cell">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-gray-500 font-mono">{token.mintAddress}</span>
+                    <span className="text-xs text-gray-500 font-mono">{token.mintAddress.slice(0, 4)}...{token.mintAddress.slice(-4)}</span>
                     <ExternalLink className="w-3 h-3 text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer hover:text-gray-400" />
                   </div>
                 </td>
@@ -79,8 +79,8 @@ export default function RecentTokensTable({ tokens }: { tokens?: TokenRow[] }) {
                   <span className="text-sm font-semibold text-gray-200">{token.totalRevenue} SOL</span>
                 </td>
                 <td className="py-3 text-right">
-                  <span className={`status-${token.status}`}>
-                    {token.status.charAt(0).toUpperCase() + token.status.slice(1)}
+                  <span className={`status-${token.status || 'active'}`}>
+                    {(token.status || 'active').charAt(0).toUpperCase() + (token.status || 'active').slice(1)}
                   </span>
                 </td>
               </motion.tr>
