@@ -13,7 +13,7 @@ export default function WalletContextProvider({ children }: { children: React.Re
 
     return (
         <ConnectionProvider endpoint={ENDPOINT}>
-            <WalletProvider wallets={wallets} autoConnect>
+            <WalletProvider wallets={wallets} autoConnect={false}>
                 <WalletModalProvider>{children}</WalletModalProvider>
             </WalletProvider>
         </ConnectionProvider>

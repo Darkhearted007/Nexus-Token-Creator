@@ -18,17 +18,21 @@ export default function Navbar() {
           </div>
           <span className="text-xl font-bold tracking-tight text-white">NexusLaunch</span>
         </Link>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-5">
           <a 
             href="https://raydium.io/liquidity/create/" 
             target="_blank" 
             rel="noreferrer"
-            className="flex items-center gap-2 text-sm font-semibold text-gray-300 hover:text-white transition-colors bg-white/5 py-2 px-4 rounded-xl border border-white/5 hover:bg-white/10 hover:border-emerald-500/30"
+            className="group flex items-center gap-2 text-sm font-semibold text-gray-300 hover:text-white transition-all duration-300 bg-white/5 py-2.5 px-5 rounded-xl border border-white/5 hover:bg-white/10 hover:border-emerald-500/40 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)]"
           >
-            <Droplets className="w-4 h-4 text-emerald-400" />
+            <Droplets className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
             Add Liquidity
           </a>
-          <WalletMultiButtonDynamic className="!bg-indigo-600 hover:!bg-indigo-700 !rounded-xl !h-12 !font-semibold !transition-colors" />
+          
+          <div className="relative group">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl opacity-20 group-hover:opacity-40 blur transition duration-300"></div>
+            <WalletMultiButtonDynamic />
+          </div>
         </div>
       </div>
     </header>
