@@ -36,6 +36,7 @@ export default function TokenLaunchpad() {
   const { publicKey, sendTransaction } = useWallet();
   const [isMinting, setIsMinting] = useState(false);
   const [successData, setSuccessData] = useState<{mint: string} | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const [balance, setBalance] = useState<number | null>(null);
 
@@ -297,12 +298,31 @@ export default function TokenLaunchpad() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-300">Token Image</label>
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/20 rounded-xl hover:bg-white/5 hover:border-indigo-500/50 transition-all cursor-pointer">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <ImageIcon className="w-8 h-8 mb-3 text-gray-500" />
-                      <p className="text-sm text-gray-400 font-medium">Click to upload SVG, PNG, or JPG</p>
-                    </div>
-                    <input type="file" className="hidden" />
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-white/20 rounded-xl hover:bg-white/5 hover:border-indigo-500/50 transition-all cursor-pointer relative overflow-hidden group">
+                    {imagePreview ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={imagePreview} alt="Token Preview" className="absolute inset-0 w-full h-full object-contain p-2 z-0" />
+                        <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                          <ImageIcon className="w-6 h-6 mb-1 text-white" />
+                          <p className="text-xs text-white font-medium">Change Image</p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <ImageIcon className="w-8 h-8 mb-3 text-gray-500" />
+                        <p className="text-sm text-gray-400 font-medium">Click to upload SVG, PNG, or JPG</p>
+                      </div>
+                    )}
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setImagePreview(URL.createObjectURL(file));
+                      }} 
+                    />
                   </label>
                 </div>
 

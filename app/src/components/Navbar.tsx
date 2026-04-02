@@ -18,6 +18,13 @@ export default function Navbar() {
           </div>
           <span className="text-xl font-bold tracking-tight text-white">NexusLaunch</span>
         </Link>
+        <div className="hidden lg:flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
+          <Link href="/dashboard" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">Analytics</Link>
+          <Link href="/" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">Creator</Link>
+          <Link href="/dashboard/market-maker" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">Market Maker</Link>
+          <Link href="/dashboard/openbook" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">OpenBook</Link>
+          <Link href="/dashboard/airdrop" className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">Airdrop</Link>
+        </div>
         <div className="flex items-center gap-5">
           <a 
             href="https://raydium.io/liquidity/create/" 
