@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Coins, Image as ImageIcon, Sparkles, Flame, Check, Shield, Lock, Crosshair, PenSquare } from 'lucide-react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { buildMintTransaction } from '@/lib/solana/mint';
 import { saveTokenToFirestore } from '@/lib/firebase/firestore';
 
@@ -36,9 +37,36 @@ export default function TokenLaunchpad() {
   const [isMinting, setIsMinting] = useState(false);
   const [successData, setSuccessData] = useState<{mint: string} | null>(null);
 
+  const [balance, setBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!publicKey) {
+      setBalance(null);
+      return;
+    }
+    const fetchBalance = async () => {
+      try {
+        const bal = await connection.getBalance(publicKey);
+        setBalance(bal / LAMPORTS_PER_SOL);
+      } catch (err) {
+        console.error("Failed to fetch balance", err);
+      }
+    };
+    fetchBalance();
+    
+    const subId = connection.onAccountChange(publicKey, (info) => {
+      setBalance(info.lamports / LAMPORTS_PER_SOL);
+    });
+    return () => { connection.removeAccountChangeListener(subId); };
+  }, [publicKey, connection]);
+
   const handleCreateToken = async () => {
     if (!publicKey) {
       alert('Please connect your Solana wallet first!');
+      return;
+    }
+    if (balance !== null && balance < parseFloat(totalCost)) {
+      alert(`Insufficient funds. You have ${balance.toFixed(4)} SOL, but need ${totalCost} SOL.`);
       return;
     }
     try {
@@ -332,23 +360,31 @@ export default function TokenLaunchpad() {
                   </div>
                 </div>
 
-                <button 
-                  onClick={handleCreateToken}
-                  disabled={isMinting}
-                  className="w-full mt-4 group relative inline-flex items-center justify-between px-8 py-4 font-bold text-white transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl hover:from-purple-500 hover:to-indigo-500 hover:shadow-[0_0_40px_rgba(99,102,241,0.4)] overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed">
-                  <div className="absolute inset-0 w-1/4 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[200%] group-hover:animate-[shimmer_2s_infinite]" />
-                  <span className="relative flex items-center gap-2">
-                    {isMinting ? (
-                      <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white/50 border-t-white"></span>
-                    ) : (
-                      <Sparkles className="w-5 h-5" />
-                    )}
-                    {isMinting ? 'Deploying to Solana...' : 'Create Token & Deploy'}
-                  </span>
-                  <span className="relative bg-black/30 px-3 py-1 rounded-lg border border-white/10 shadow-inner group-hover:border-white/30 transition-colors">
-                    {totalCost} SOL
-                  </span>
-                </button>
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-center text-sm px-2">
+                    <span className="text-gray-400">Your Balance:</span>
+                    <span className={`font-mono font-bold ${balance !== null && balance < parseFloat(totalCost) ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {balance !== null ? `${balance.toFixed(4)} SOL` : 'Not connected'}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={handleCreateToken}
+                    disabled={isMinting || (balance !== null && balance < parseFloat(totalCost))}
+                    className="w-full group relative inline-flex items-center justify-between px-8 py-4 font-bold text-white transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl hover:from-purple-500 hover:to-indigo-500 hover:shadow-[0_0_40px_rgba(99,102,241,0.4)] overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed">
+                    <div className="absolute inset-0 w-1/4 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[200%] group-hover:animate-[shimmer_2s_infinite]" />
+                    <span className="relative flex items-center gap-2">
+                      {isMinting ? (
+                        <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white/50 border-t-white"></span>
+                      ) : (
+                        <Sparkles className="w-5 h-5" />
+                      )}
+                      {isMinting ? 'Deploying to Solana...' : 'Create Token & Deploy'}
+                    </span>
+                    <span className="relative bg-black/30 px-3 py-1 rounded-lg border border-white/10 shadow-inner group-hover:border-white/30 transition-colors">
+                      {totalCost} SOL
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -16,7 +16,8 @@ import {
   Upload
 } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { PublicKey, Transaction } from '@solana/web3.js';
+import { PublicKey, Transaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { useEffect } from 'react';
 import { parseAirdropFile, buildAirdropBatches } from '@/lib/solana/airdrop';
 
 export default function AirdropPage() {
@@ -27,6 +28,28 @@ export default function AirdropPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [balance, setBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!publicKey) {
+      setBalance(null);
+      return;
+    }
+    const fetchBalance = async () => {
+      try {
+        const bal = await connection.getBalance(publicKey);
+        setBalance(bal / LAMPORTS_PER_SOL);
+      } catch (err) {
+        console.error("Failed to fetch balance", err);
+      }
+    };
+    fetchBalance();
+    
+    const subId = connection.onAccountChange(publicKey, (info) => {
+      setBalance(info.lamports / LAMPORTS_PER_SOL);
+    });
+    return () => { connection.removeAccountChangeListener(subId); };
+  }, [publicKey, connection]);
 
   const recipientList = parseAirdropFile(recipients);
   const totalCost = (recipientList.length * 0.002).toFixed(4); 
@@ -35,6 +58,10 @@ export default function AirdropPage() {
     if (!publicKey) return alert('Please connect your Solana wallet!');
     if (!tokenAddress || recipientList.length === 0) {
       alert('Please provide a valid token address and at least one recipient.');
+      return;
+    }
+    if (balance !== null && balance < parseFloat(totalCost)) {
+      alert(`Insufficient funds. Your balance is ${balance.toFixed(4)} SOL, but this airdrop costs ${totalCost} SOL.`);
       return;
     }
     setShowReview(true);
@@ -153,13 +180,19 @@ export default function AirdropPage() {
                 <span className="text-white font-bold">Total Est. Cost</span>
                 <span className="text-emerald-400 font-bold">{totalCost} SOL</span>
               </div>
+              <div className="flex justify-between text-sm mt-1">
+                <span className="text-gray-500">Your Balance</span>
+                <span className={`font-mono ${balance !== null && balance < parseFloat(totalCost) ? 'text-red-400' : 'text-gray-300'}`}>
+                  {balance !== null ? `${balance.toFixed(4)} SOL` : 'Not connected'}
+                </span>
+              </div>
             </div>
 
             <button 
-              disabled={isProcessing || recipientList.length === 0}
+              disabled={isProcessing || recipientList.length === 0 || (balance !== null && balance < parseFloat(totalCost))}
               onClick={handleAirdrop}
               className={`w-full mt-8 h-14 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 shadow-xl ${
-                isProcessing 
+                isProcessing || (balance !== null && balance < parseFloat(totalCost))
                   ? 'bg-white/5 text-gray-500 cursor-not-allowed' 
                   : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20'
               }`}
@@ -172,7 +205,7 @@ export default function AirdropPage() {
               ) : (
                 <>
                   <Send className="w-5 h-5" />
-                  Execute Airdrop
+                  {balance !== null && balance < parseFloat(totalCost) ? 'Insufficient SOL' : 'Execute Airdrop'}
                 </>
               )}
             </button>

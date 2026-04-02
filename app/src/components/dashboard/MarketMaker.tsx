@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   Loader2
 } from 'lucide-react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 const STRATEGIES = [
   { id: 'natural', name: 'Natural Growth', desc: 'Mimics real human trading patterns', icon: TrendingUp },
@@ -26,6 +27,8 @@ const STRATEGIES = [
 
 export default function MarketMaker() {
   const { publicKey } = useWallet();
+  const { connection } = useConnection();
+  const [balance, setBalance] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'config' | 'active'>('config');
   const [tokenAddress, setTokenAddress] = useState('');
   const [strategy, setStrategy] = useState('natural');
@@ -47,9 +50,36 @@ export default function MarketMaker() {
     tradesPerMin: 0
   });
 
+  useEffect(() => {
+    if (!publicKey) {
+      setBalance(null);
+      return;
+    }
+    const fetchBalance = async () => {
+      try {
+        const bal = await connection.getBalance(publicKey);
+        setBalance(bal / LAMPORTS_PER_SOL);
+      } catch (err) {
+        console.error("Failed to fetch balance", err);
+      }
+    };
+    fetchBalance();
+    
+    const subId = connection.onAccountChange(publicKey, (info) => {
+      setBalance(info.lamports / LAMPORTS_PER_SOL);
+    });
+    return () => { connection.removeAccountChangeListener(subId); };
+  }, [publicKey, connection]);
+
+  const SERVICE_COST = 0.10;
+
   const handleStart = async () => {
     if (!publicKey) return alert('Please connect your Solana wallet first!');
     if (!tokenAddress) return alert('Please enter a token address');
+    if (balance !== null && balance < SERVICE_COST) {
+      alert(`Insufficient funds. Your balance is ${balance.toFixed(4)} SOL, but you need at least ${SERVICE_COST} SOL.`);
+      return;
+    }
     
     setIsLaunching(true);
     // Simulate transaction delay
@@ -254,7 +284,13 @@ export default function MarketMaker() {
                       <div className="h-px bg-white/[0.06] my-2" />
                       <div className="flex justify-between text-base">
                         <span className="text-white font-bold">Total Service Cost</span>
-                        <span className="text-emerald-400 font-bold">0.10 SOL</span>
+                        <span className="text-emerald-400 font-bold">{SERVICE_COST.toFixed(2)} SOL</span>
+                      </div>
+                      <div className="flex justify-between text-sm mt-1">
+                        <span className="text-gray-500">Your Balance</span>
+                        <span className={`font-mono ${balance !== null && balance < SERVICE_COST ? 'text-red-400' : 'text-gray-300'}`}>
+                          {balance !== null ? `${balance.toFixed(4)} SOL` : 'Not connected'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -299,8 +335,12 @@ export default function MarketMaker() {
 
                 <button 
                   onClick={handleStart}
-                  disabled={isLaunching}
-                  className="w-full mt-8 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLaunching || (balance !== null && balance < SERVICE_COST)}
+                  className={`w-full mt-8 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isLaunching || (balance !== null && balance < SERVICE_COST)
+                      ? 'bg-white/5 text-gray-500'
+                      : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20'
+                  }`}
                 >
                   {isLaunching ? (
                     <>
@@ -310,7 +350,7 @@ export default function MarketMaker() {
                   ) : (
                     <>
                       <Play className="w-5 h-5 fill-current group-hover:scale-110 transition-transform" />
-                      Launch Market Maker
+                      {balance !== null && balance < SERVICE_COST ? 'Insufficient SOL' : 'Launch Market Maker'}
                     </>
                   )}
                 </button>
