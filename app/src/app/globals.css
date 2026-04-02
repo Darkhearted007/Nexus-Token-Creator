@@ -211,3 +211,27 @@ body {
   box-shadow: 0 0 20px rgba(139, 92, 246, 0.15) !important;
   transform: translateY(-1px) !important;
 }
+
+/* ───── Crypto Animated Background ───── */
+@keyframes slow-pan-zoom {
+  0% { transform: scale(1.05) translate(0, 0); }
+  50% { transform: scale(1.15) translate(-1%, 2%); }
+  100% { transform: scale(1.05) translate(0, 0); }
+}
+
+.crypto-bg-animate {
+  animation: slow-pan-zoom 60s ease-in-out infinite;
+  background-image: url('/nexus-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -50;
+  opacity: 0.25;
+  pointer-events: none;
+  filter: saturate(1.2) brightness(0.8) contrast(1.2);
+}

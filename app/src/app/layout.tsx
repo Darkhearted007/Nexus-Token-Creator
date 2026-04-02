@@ -19,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.className} bg-gray-950 text-white antialiased min-h-screen flex flex-col`}>
+        <div className="crypto-bg-animate" />
         <WalletContextProvider>
           <Navbar />
           <main className="flex-1 w-full">{children}</main>
