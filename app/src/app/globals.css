@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --card-bg: rgba(17, 17, 27, 0.8);
-  --card-border: rgba(255, 255, 255, 0.06);
-  --card-border-hover: rgba(255, 255, 255, 0.12);
-  --sidebar-bg: rgba(12, 12, 20, 0.95);
-  --accent-purple: #8b5cf6;
-  --accent-indigo: #6366f1;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
-  --glow-purple: rgba(139, 92, 246, 0.15);
-  --glow-indigo: rgba(99, 102, 241, 0.15);
-  --glow-emerald: rgba(16, 185, 129, 0.15);
+  --background: #111111;
+  --foreground: #f4f4f5;
+  --card-bg: rgba(24, 24, 27, 0.65);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-border-hover: rgba(255, 255, 255, 0.18);
+  --sidebar-bg: rgba(18, 18, 20, 0.95);
+  --accent-purple: #9333ea;
+  --accent-indigo: #4f46e5;
+  --accent-emerald: #059669;
+  --accent-amber: #d97706;
+  --glow-purple: rgba(139, 92, 246, 0.05); /* reduced */
+  --glow-indigo: rgba(99, 102, 241, 0.05); /* reduced */
+  --glow-emerald: rgba(16, 185, 129, 0.05); /* reduced */
 }
 
 @theme inline {
@@ -71,6 +71,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.01em;
 }
 
 /* Custom Scrollbar */
@@ -89,18 +90,34 @@ body {
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* ───── Glassmorphism Utility ───── */
+/* ───── Component Cards (Notion Style) ───── */
+.dashboard-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+}
+.dashboard-card:hover {
+  border-color: var(--card-border-hover);
+  background: rgba(30, 30, 35, 0.75);
+}
+
 .glass-card {
   background: var(--card-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--card-border);
-  border-radius: 1rem;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
 }
 .glass-card:hover {
   border-color: var(--card-border-hover);
-  box-shadow: 0 0 40px rgba(99, 102, 241, 0.04);
+  background: rgba(30, 30, 35, 0.75);
 }
 
 /* ───── Dashboard Animations ───── */
@@ -192,11 +209,11 @@ body {
 
 /* ───── Solana Wallet Adapter Overrides ───── */
 .wallet-adapter-button-trigger {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(99, 102, 241, 0.15)) !important;
-  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
   color: #fff !important;
   font-family: inherit !important;
-  border-radius: 0.75rem !important;
+  border-radius: 8px !important;
   padding: 0 1rem !important;
   height: 2.5rem !important;
   font-size: 0.875rem !important;
@@ -206,10 +223,10 @@ body {
 }
 
 .wallet-adapter-button-trigger:hover {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(99, 102, 241, 0.25)) !important;
-  border-color: rgba(139, 92, 246, 0.5) !important;
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.15) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
   transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
 }
 
 /* ───── Crypto Animated Background ───── */
