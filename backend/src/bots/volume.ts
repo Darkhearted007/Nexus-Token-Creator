@@ -66,9 +66,9 @@ export async function runVolumeBot(
 ) {
   if (activeSessions.has(mintAddress)) {
     logger.warn(
-      `[Volume Bot] Session already active for ${mintAddress}, skipping duplicate.`
+      `[Volume Bot] Session already active for ${mintAddress}, rejecting duplicate start.`
     );
-    return;
+    throw new Error(`[Volume Bot] Duplicate session for ${mintAddress}`);
   }
 
   const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
