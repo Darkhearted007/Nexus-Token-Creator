@@ -1,34 +1,34 @@
 /**
  * @fileoverview Audit logging for security-critical operations
  * Copyright © 2026 NexusChain. All rights reserved.
- * 
+ *
  * Proprietary - Unauthorized use or reverse-engineering prohibited.
  * Logs all sensitive operations for compliance and incident investigation.
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from "firebase-admin";
 
 interface AuditLog {
   timestamp: string;
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   action: string;
   actor: string;
   resource: string;
   details: Record<string, unknown>;
-  result: 'SUCCESS' | 'FAILURE';
+  result: "SUCCESS" | "FAILURE";
   errorMessage?: string;
 }
 
 class AuditLogger {
-  private collectionName = '_audit_logs';
+  private collectionName = "_audit_logs";
 
   async log(
-    severity: AuditLog['severity'],
+    severity: AuditLog["severity"],
     action: string,
     actor: string,
     resource: string,
     details: Record<string, unknown>,
-    result: AuditLog['result'] = 'SUCCESS',
+    result: AuditLog["result"] = "SUCCESS",
     errorMessage?: string
   ): Promise<void> {
     const entry: AuditLog = {
@@ -45,18 +45,18 @@ class AuditLogger {
     try {
       const db = admin.firestore();
       await db.collection(this.collectionName).add(entry);
-      
+
       // Also log to stdout with appropriate level
-      if (severity === 'CRITICAL') {
-        console.error('[AUDIT CRITICAL]', JSON.stringify(entry));
-      } else if (severity === 'HIGH') {
-        console.warn('[AUDIT HIGH]', JSON.stringify(entry));
+      if (severity === "CRITICAL") {
+        console.error("[AUDIT CRITICAL]", JSON.stringify(entry));
+      } else if (severity === "HIGH") {
+        console.warn("[AUDIT HIGH]", JSON.stringify(entry));
       } else {
-        console.log('[AUDIT]', JSON.stringify(entry));
+        console.log("[AUDIT]", JSON.stringify(entry));
       }
     } catch (err) {
       // Fail gracefully - don't block operations if logging fails
-      console.error('[AUDIT LOG FAILED]', err);
+      console.error("[AUDIT LOG FAILED]", err);
     }
   }
 
@@ -68,12 +68,12 @@ class AuditLogger {
     error?: string
   ): Promise<void> {
     await this.log(
-      'MEDIUM',
-      'FEE_COLLECTION',
+      "MEDIUM",
+      "FEE_COLLECTION",
       payer,
       `fee:${amount}`,
       { amount, payer },
-      success ? 'SUCCESS' : 'FAILURE',
+      success ? "SUCCESS" : "FAILURE",
       error
     );
   }
@@ -86,30 +86,30 @@ class AuditLogger {
     error?: string
   ): Promise<void> {
     await this.log(
-      'HIGH',
+      "HIGH",
       action,
       admin,
-      'admin_action',
+      "admin_action",
       details,
-      success ? 'SUCCESS' : 'FAILURE',
+      success ? "SUCCESS" : "FAILURE",
       error
     );
   }
 
   async logBotExecution(
-    botType: 'VOLUME' | 'SNIPER',
+    botType: "VOLUME" | "SNIPER",
     mintAddress: string,
     details: Record<string, unknown>,
     success: boolean,
     error?: string
   ): Promise<void> {
     await this.log(
-      'MEDIUM',
+      "MEDIUM",
       `${botType}_BOT_EXECUTION`,
-      'system:bot',
+      "system:bot",
       mintAddress,
       { botType, mintAddress, ...details },
-      success ? 'SUCCESS' : 'FAILURE',
+      success ? "SUCCESS" : "FAILURE",
       error
     );
   }
@@ -123,29 +123,29 @@ class AuditLogger {
     error?: string
   ): Promise<void> {
     await this.log(
-      'HIGH',
-      'TOKEN_CREATION',
+      "HIGH",
+      "TOKEN_CREATION",
       creator,
       mintAddress,
       { tokenName, creator, ...details },
-      success ? 'SUCCESS' : 'FAILURE',
+      success ? "SUCCESS" : "FAILURE",
       error
     );
   }
 
   async logSecurityEvent(
     eventType: string,
-    severity: AuditLog['severity'],
+    severity: AuditLog["severity"],
     details: Record<string, unknown>,
     errorMessage?: string
   ): Promise<void> {
     await this.log(
       severity,
       eventType,
-      'system:security',
-      'security_event',
+      "system:security",
+      "security_event",
       details,
-      errorMessage ? 'FAILURE' : 'SUCCESS',
+      errorMessage ? "FAILURE" : "SUCCESS",
       errorMessage
     );
   }
@@ -156,12 +156,12 @@ class AuditLogger {
     limit: number
   ): Promise<void> {
     await this.log(
-      'LOW',
-      'RATE_LIMIT_EXCEEDED',
+      "LOW",
+      "RATE_LIMIT_EXCEEDED",
       clientId,
       endpoint,
       { clientId, endpoint, limit },
-      'FAILURE'
+      "FAILURE"
     );
   }
 
@@ -171,12 +171,12 @@ class AuditLogger {
     details: Record<string, unknown>
   ): Promise<void> {
     await this.log(
-      'HIGH',
-      'UNAUTHORIZED_ACCESS_ATTEMPT',
+      "HIGH",
+      "UNAUTHORIZED_ACCESS_ATTEMPT",
       actor,
       resource,
       details,
-      'FAILURE'
+      "FAILURE"
     );
   }
 }

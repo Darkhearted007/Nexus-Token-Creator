@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 // Basic in-memory rate limiting map.
 // Note: Edge functions spin up/down, so this is volatile, but it absorbs localized burst DDoS.
@@ -10,8 +10,9 @@ const MAX_REQUESTS_PER_MINUTE = 100;
 
 export function proxy(request: NextRequest) {
   // Apply rate limiting to explicit API routes and webhooks
-  if (request.nextUrl.pathname.startsWith('/api')) {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? 'anonymous';
+  if (request.nextUrl.pathname.startsWith("/api")) {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0] ?? "anonymous";
     const now = Date.now();
     let record = rateLimitMap.get(ip);
 
@@ -24,18 +25,20 @@ export function proxy(request: NextRequest) {
     rateLimitMap.set(ip, record);
 
     if (record.count > MAX_REQUESTS_PER_MINUTE) {
-      console.warn(`[Security] 🛡️ Blocked Rate Limit Exceeded for IP: ${ip} at ${request.nextUrl.pathname}`);
+      console.warn(
+        `[Security] 🛡️ Blocked Rate Limit Exceeded for IP: ${ip} at ${request.nextUrl.pathname}`
+      );
       return new NextResponse(
-        JSON.stringify({ 
+        JSON.stringify({
           error: "Too Many Requests",
-          message: "Please wait a minute before trying again." 
-        }), 
+          message: "Please wait a minute before trying again.",
+        }),
         {
           status: 429,
           headers: {
-            'Content-Type': 'application/json',
-            'Retry-After': '60',
-            'X-RateLimit-Limit': MAX_REQUESTS_PER_MINUTE.toString(),
+            "Content-Type": "application/json",
+            "Retry-After": "60",
+            "X-RateLimit-Limit": MAX_REQUESTS_PER_MINUTE.toString(),
           },
         }
       );
@@ -47,5 +50,5 @@ export function proxy(request: NextRequest) {
 
 // Standard Next.js Middleware configuration
 export const config = {
-  matcher: '/api/:path*',
+  matcher: "/api/:path*",
 };
