@@ -105,9 +105,7 @@ export async function runSniperBot(mintAddress: string, tierCost: number) {
         });
 
         try {
-          const quoteResp = await fetch(
-            `${JUPITER_QUOTE_API}?${quoteParams}`
-          );
+          const quoteResp = await fetch(`${JUPITER_QUOTE_API}?${quoteParams}`);
           if (quoteResp.ok) {
             const body = await quoteResp.json();
             if (!body.error && body.routePlan) {
@@ -179,7 +177,5 @@ export async function runSniperBot(mintAddress: string, tierCost: number) {
   void tokenMintPk; // used for validation side-effect
   await Promise.all(walletsToUse.map((w, i) => executeSnipe(w, i)));
 
-  console.log(
-    `[Sniper Bot] 🛡️ Snipe sequence complete for ${mintAddress}.`
-  );
+  console.log(`[Sniper Bot] 🛡️ Snipe sequence complete for ${mintAddress}.`);
 }
