@@ -1,6 +1,8 @@
 import {
   collection,
   addDoc,
+  doc,
+  updateDoc,
   serverTimestamp,
   query,
   orderBy,
@@ -60,4 +62,41 @@ export async function getTrendingTokens() {
     tokens.push({ id: doc.id, ...doc.data() });
   });
   return tokens;
+}
+
+export interface MarketMakerSessionRecord {
+  mintAddress: string;
+  creatorWallet: string;
+  strategy: string;
+  duration: number; // hours
+  volumeSol: number;
+}
+
+export async function saveMarketMakerSession(
+  data: MarketMakerSessionRecord
+): Promise<string> {
+  const sessionsRef = collection(db, "market_maker_sessions");
+  try {
+    const docRef = await addDoc(sessionsRef, {
+      ...data,
+      status: "pending",
+      createdAt: serverTimestamp(),
+    });
+    logger.info("Market maker session created", { id: docRef.id });
+    return docRef.id;
+  } catch (e) {
+    logger.error("Firebase Error - creating market maker session", e);
+    throw e;
+  }
+}
+
+export async function stopMarketMakerSession(sessionId: string): Promise<void> {
+  const sessionRef = doc(db, "market_maker_sessions", sessionId);
+  try {
+    await updateDoc(sessionRef, { status: "stopped" });
+    logger.info("Market maker session stopped", { id: sessionId });
+  } catch (e) {
+    logger.error("Firebase Error - stopping market maker session", e);
+    throw e;
+  }
 }

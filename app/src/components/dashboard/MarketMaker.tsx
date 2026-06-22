@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
-import { saveTokenToFirestore } from '@/lib/firebase/firestore';
+import { saveMarketMakerSession, stopMarketMakerSession } from '@/lib/firebase/firestore';
 
 const STRATEGIES = [
   { id: 'natural', name: 'Natural Growth', desc: 'Mimics real human trading patterns', icon: TrendingUp },
@@ -35,6 +35,7 @@ export default function MarketMaker() {
   const [strategy, setStrategy] = useState('natural');
   const [isRunning, setIsRunning] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [config, setConfig] = useState({
     targetVolume: 50,
     duration: 24,
@@ -94,17 +95,16 @@ export default function MarketMaker() {
     setIsLaunching(true);
 
     try {
-      // Write to Firestore so the backend listener picks it up and runs the volume bot
-      await saveTokenToFirestore({
+      // Write to the dedicated market_maker_sessions collection so the backend
+      // listener picks it up and runs the volume bot with the correct config.
+      const id = await saveMarketMakerSession({
         mintAddress: validMint.toBase58(),
         creatorWallet: publicKey.toBase58(),
-        name: 'Market Maker Session',
-        symbol: '',
-        decimals: 9,
-        supply: 0,
-        hasVolumeBot: true,
-        volumeBotTier: SERVICE_COST,
+        strategy,
+        duration: config.duration,
+        volumeSol: SERVICE_COST,
       });
+      setSessionId(id);
     } catch (err) {
       setIsLaunching(false);
       console.error('Failed to register market maker session', err);
@@ -121,6 +121,18 @@ export default function MarketMaker() {
       { id: 2, type: 'SELL', amount: 0.12, wallet: '4hB...mR2', time: new Date().toLocaleTimeString() },
     ]);
     setSessionStats({ volume: 0.57, uptime: 0, successRate: 98.5, tradesPerMin: 2.1 });
+  };
+
+  const handleStop = async () => {
+    if (sessionId) {
+      try {
+        await stopMarketMakerSession(sessionId);
+      } catch (err) {
+        console.error('Failed to stop session', err);
+      }
+    }
+    setIsRunning(false);
+    setSessionId(null);
   };
 
   useEffect(() => {
@@ -435,7 +447,7 @@ export default function MarketMaker() {
                         <p className="text-lg font-mono text-white font-black">{sessionStats.volume.toFixed(3)} SOL</p>
                       </div>
                       <button 
-                        onClick={() => setIsRunning(false)}
+                        onClick={handleStop}
                         className="px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold rounded-xl border border-red-500/20 transition-all flex items-center gap-2"
                       >
                         <Square className="w-4 h-4 fill-current" />

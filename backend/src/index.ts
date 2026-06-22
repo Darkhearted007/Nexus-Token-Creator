@@ -71,6 +71,9 @@ async function initFirebase() {
   return db;
 }
 
+/** Active market-maker session signals keyed by Firestore session document ID. */
+const activeSessionSignals = new Map<string, { cancelled: boolean }>();
+
 async function main() {
   logger.info("==========================================");
   logger.info(" Nexus Launchpad Execution Server STARTED ");
@@ -79,81 +82,196 @@ async function main() {
   const healthServer = startHealthServer();
   const db = await initFirebase();
 
-  logger.info("Listening for new Tokens on Web2 Database...");
+  // Capture server start time BEFORE attaching listeners so that the initial
+  // onSnapshot delivery of pre-existing documents is ignored by both listeners.
+  const serverStartTime = admin.firestore.Timestamp.now();
 
-  const unsubscribe = db.collection("tokens").onSnapshot(
-    (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "added") {
+  logger.info("Listening for new Token Launches...");
+
+  // ─── Listener 1: token-creator page ─────────────────────────────────────────
+  // Only process documents created after this server instance started to avoid
+  // re-triggering bots for tokens whose sessions already ran.
+  const unsubscribeTokens = db
+    .collection("tokens")
+    .where("createdAt", ">", serverStartTime)
+    .onSnapshot(
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            const data = change.doc.data();
+            logger.info(
+              `New Token Launch Detected: ${data.name} (${data.symbol})`
+            );
+
+            if (data.volumeBotTier && data.volumeBotTier > 0) {
+              logger.info(
+                `Volume Bot triggered (tier: ${data.volumeBotTier} SOL)`
+              );
+              let hours = 1;
+              if (data.volumeBotTier >= 0.3) hours = 6;
+              if (data.volumeBotTier >= 0.5) hours = 24;
+              runVolumeBot(data.mintAddress, hours)
+                .then(() =>
+                  auditLogger.logBotExecution(
+                    "VOLUME",
+                    data.mintAddress,
+                    { tier: data.volumeBotTier, hours },
+                    true
+                  )
+                )
+                .catch((err) => {
+                  logger.error("Volume Bot crashed", err);
+                  auditLogger.logBotExecution(
+                    "VOLUME",
+                    data.mintAddress,
+                    { tier: data.volumeBotTier, hours },
+                    false,
+                    String(err)
+                  );
+                });
+            }
+
+            if (data.sniperBotTier && data.sniperBotTier > 0) {
+              logger.info(
+                `Sniper Bot triggered (tier: ${data.sniperBotTier} SOL)`
+              );
+              runSniperBot(data.mintAddress, data.sniperBotTier)
+                .then(() =>
+                  auditLogger.logBotExecution(
+                    "SNIPER",
+                    data.mintAddress,
+                    { tier: data.sniperBotTier },
+                    true
+                  )
+                )
+                .catch((err) => {
+                  logger.error("Sniper Bot crashed", err);
+                  auditLogger.logBotExecution(
+                    "SNIPER",
+                    data.mintAddress,
+                    { tier: data.sniperBotTier },
+                    false,
+                    String(err)
+                  );
+                });
+            }
+          }
+        });
+      },
+      (err) => {
+        logger.error("Firestore tokens listener error", err.message);
+      }
+    );
+
+  // ─── Listener 2: Market Maker page sessions ──────────────────────────────────
+  logger.info("Listening for Market Maker sessions...");
+
+  const unsubscribeSessions = db
+    .collection("market_maker_sessions")
+    .where("createdAt", ">", serverStartTime)
+    .onSnapshot(
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          const sessionId = change.doc.id;
           const data = change.doc.data();
-          logger.info(
-            `New Token Launch Detected: ${data.name} (${data.symbol})`
-          );
 
-          if (data.volumeBotTier && data.volumeBotTier > 0) {
+          if (change.type === "added" && data.status === "pending") {
             logger.info(
-              `Volume Bot triggered (tier: ${data.volumeBotTier} SOL)`
+              `[Market Maker] New session ${sessionId} for ${data.mintAddress}`
             );
-            let hours = 1;
-            if (data.volumeBotTier >= 0.3) hours = 6;
-            if (data.volumeBotTier >= 0.5) hours = 24;
-            runVolumeBot(data.mintAddress, hours)
-              .then(() =>
-                auditLogger.logBotExecution(
-                  "VOLUME",
-                  data.mintAddress,
-                  { tier: data.volumeBotTier, hours },
-                  true
+
+            const signal: { cancelled: boolean } = { cancelled: false };
+            activeSessionSignals.set(sessionId, signal);
+
+            // Acknowledge that the backend has picked up the session
+            db.collection("market_maker_sessions")
+              .doc(sessionId)
+              .update({ status: "running" })
+              .catch((err) =>
+                logger.error(
+                  `[Market Maker] Failed to mark session ${sessionId} as running`,
+                  err
                 )
-              )
-              .catch((err) => {
-                logger.error("Volume Bot crashed", err);
+              );
+
+            const durationHours =
+              typeof data.duration === "number" && data.duration > 0
+                ? data.duration
+                : 1;
+
+            runVolumeBot(data.mintAddress, durationHours, signal)
+              .then(() => {
+                activeSessionSignals.delete(sessionId);
+                if (!signal.cancelled) {
+                  // Bot ran to natural completion
+                  db.collection("market_maker_sessions")
+                    .doc(sessionId)
+                    .update({ status: "stopped" })
+                    .catch((err) =>
+                      logger.error(
+                        `[Market Maker] Failed to finalize session ${sessionId}`,
+                        err
+                      )
+                    );
+                }
                 auditLogger.logBotExecution(
                   "VOLUME",
                   data.mintAddress,
-                  { tier: data.volumeBotTier, hours },
+                  { sessionId, durationHours },
+                  true
+                );
+              })
+              .catch((err) => {
+                logger.error(
+                  `[Market Maker] Session ${sessionId} crashed`,
+                  err
+                );
+                activeSessionSignals.delete(sessionId);
+                db.collection("market_maker_sessions")
+                  .doc(sessionId)
+                  .update({ status: "failed" })
+                  .catch(() => {});
+                auditLogger.logBotExecution(
+                  "VOLUME",
+                  data.mintAddress,
+                  { sessionId, durationHours },
                   false,
                   String(err)
                 );
               });
           }
 
-          if (data.sniperBotTier && data.sniperBotTier > 0) {
-            logger.info(
-              `Sniper Bot triggered (tier: ${data.sniperBotTier} SOL)`
-            );
-            runSniperBot(data.mintAddress, data.sniperBotTier)
-              .then(() =>
-                auditLogger.logBotExecution(
-                  "SNIPER",
-                  data.mintAddress,
-                  { tier: data.sniperBotTier },
-                  true
-                )
-              )
-              .catch((err) => {
-                logger.error("Sniper Bot crashed", err);
-                auditLogger.logBotExecution(
-                  "SNIPER",
-                  data.mintAddress,
-                  { tier: data.sniperBotTier },
-                  false,
-                  String(err)
-                );
-              });
+          // User or admin requested a stop
+          if (change.type === "modified" && data.status === "stopped") {
+            const signal = activeSessionSignals.get(sessionId);
+            if (signal) {
+              logger.info(
+                `[Market Maker] Session ${sessionId} stop requested — cancelling bot`
+              );
+              signal.cancelled = true;
+              activeSessionSignals.delete(sessionId);
+            }
           }
-        }
-      });
-    },
-    (err) => {
-      logger.error("Firestore Listener error", err.message);
-    }
-  );
+        });
+      },
+      (err) => {
+        logger.error(
+          "Firestore market_maker_sessions listener error",
+          err.message
+        );
+      }
+    );
 
   // Graceful shutdown
   const shutdown = (signal: string) => {
-    logger.info(`Received ${signal}. Unsubscribing listener and exiting...`);
-    unsubscribe();
+    logger.info(`Received ${signal}. Cancelling active sessions and exiting...`);
+    // Signal all running volume bots to stop
+    for (const sig of activeSessionSignals.values()) {
+      sig.cancelled = true;
+    }
+    activeSessionSignals.clear();
+    unsubscribeTokens();
+    unsubscribeSessions();
     healthServer.close();
     process.exit(0);
   };
