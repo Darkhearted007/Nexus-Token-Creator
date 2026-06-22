@@ -7,7 +7,11 @@ import {
   updateV1,
 } from "@metaplex-foundation/mpl-token-metadata";
 
-import { signerIdentity, publicKey } from "@metaplex-foundation/umi";
+import {
+  percentAmount,
+  publicKey,
+  signerIdentity,
+} from "@metaplex-foundation/umi";
 
 import { PublicKey } from "@solana/web3.js";
 
@@ -48,7 +52,7 @@ export async function createTokenMetadata(input: TokenMetadataInput) {
     name: input.name,
     symbol: input.symbol,
     uri: metadataUri,
-    sellerFeeBasisPoints: 0,
+    sellerFeeBasisPoints: percentAmount(0),
     isMutable: true,
   });
 
@@ -73,8 +77,9 @@ export async function revokeUpdateAuthority(mint: PublicKey, signer: any) {
   const metadata = findMetadataPda(umi, { mint: mintPk });
 
   const tx = updateV1(umi, {
+    mint: mintPk,
     metadata,
-    updateAuthority: null, // <- THIS is the real revoke
+    newUpdateAuthority: null,
   });
 
   await tx.sendAndConfirm(umi);
