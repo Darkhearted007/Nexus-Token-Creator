@@ -1,28 +1,28 @@
-import { 
-  Connection, 
-  Keypair, 
-  SystemProgram, 
-  Transaction, 
+import {
+  Connection,
+  Keypair,
+  SystemProgram,
+  Transaction,
   PublicKey,
-} from '@solana/web3.js';
-import { 
-  createInitializeMintInstruction, 
-  getMinimumBalanceForRentExemptMint, 
-  MINT_SIZE, 
-  TOKEN_PROGRAM_ID, 
-  createAssociatedTokenAccountInstruction, 
-  getAssociatedTokenAddress, 
+} from "@solana/web3.js";
+import {
+  createInitializeMintInstruction,
+  getMinimumBalanceForRentExemptMint,
+  MINT_SIZE,
+  TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
+  getAssociatedTokenAddress,
   createMintToInstruction,
   createSetAuthorityInstruction,
-  AuthorityType
-} from '@solana/spl-token';
+  AuthorityType,
+} from "@solana/spl-token";
 
 // Treasury wallet — corresponds to the admin wallet in backend/.env
 const TREASURY_WALLET = new PublicKey(
-  process.env.NEXT_PUBLIC_TREASURY_WALLET ?? "5hA4DvFa82zJS6yx5ahdb2HEKvmMx4zJeXTyZaWTA5A8"
+  process.env.NEXT_PUBLIC_TREASURY_WALLET ??
+    "5hA4DvFa82zJS6yx5ahdb2HEKvmMx4zJeXTyZaWTA5A8"
 );
 const PROTOCOL_FEE_LAMPORTS = 0.1 * 10 ** 9; // 0.1 SOL Base Fee
-
 
 // Export so the frontend WalletContextProvider can consume the same RPC
 export const SOLANA_RPC_URL =
@@ -38,21 +38,31 @@ export async function buildMintTransaction(
   revokeMint: boolean,
   revokeFreeze: boolean,
   revokeUpdate: boolean
-): Promise<{ transaction: Transaction, mintPath: string, mintKeypair: Keypair }> {
+): Promise<{
+  transaction: Transaction;
+  mintPath: string;
+  mintKeypair: Keypair;
+}> {
   const mintKeypair = Keypair.generate();
   const lamports = await getMinimumBalanceForRentExemptMint(connection);
-  
+
   const transaction = new Transaction();
 
   // 1. Protocol Fee Transfer (The Profitability Layer)
   const volumeBotLamports = volumeBotTierCost * 10 ** 9;
   const sniperBotLamports = sniperBotTierCost * 10 ** 9;
-  
+
   const mintFee = revokeMint ? 0.1 * 10 ** 9 : 0;
   const freezeFee = revokeFreeze ? 0.1 * 10 ** 9 : 0;
   const updateFee = revokeUpdate ? 0.1 * 10 ** 9 : 0;
 
-  const totalFee = PROTOCOL_FEE_LAMPORTS + volumeBotLamports + sniperBotLamports + mintFee + freezeFee + updateFee;
+  const totalFee =
+    PROTOCOL_FEE_LAMPORTS +
+    volumeBotLamports +
+    sniperBotLamports +
+    mintFee +
+    freezeFee +
+    updateFee;
 
   transaction.add(
     SystemProgram.transfer({
@@ -73,9 +83,9 @@ export async function buildMintTransaction(
     }),
     createInitializeMintInstruction(
       mintKeypair.publicKey, // mint address
-      decimals,              // decimals
-      walletPubkey,          // mint authority
-      walletPubkey,          // freeze authority
+      decimals, // decimals
+      walletPubkey, // mint authority
+      walletPubkey, // freeze authority
       TOKEN_PROGRAM_ID
     )
   );
@@ -87,20 +97,20 @@ export async function buildMintTransaction(
     false,
     TOKEN_PROGRAM_ID
   );
-  
+
   transaction.add(
     createAssociatedTokenAccountInstruction(
-      walletPubkey,          // payer
-      userATA,               // new ata
-      walletPubkey,          // owner
+      walletPubkey, // payer
+      userATA, // new ata
+      walletPubkey, // owner
       mintKeypair.publicKey, // mint
       TOKEN_PROGRAM_ID
     )
   );
 
   // 4. Mint Total Supply to User's ATA
-  const rawSupply = BigInt(supply) * (10n ** BigInt(decimals));
-  
+  const rawSupply = BigInt(supply) * 10n ** BigInt(decimals);
+
   transaction.add(
     createMintToInstruction(
       mintKeypair.publicKey,
@@ -140,10 +150,16 @@ export async function buildMintTransaction(
   }
 
   transaction.feePayer = walletPubkey;
-  transaction.recentBlockhash = (await connection.getLatestBlockhash('confirmed')).blockhash;
+  transaction.recentBlockhash = (
+    await connection.getLatestBlockhash("confirmed")
+  ).blockhash;
 
   // The Mint account being created must partially sign the transaction
   transaction.partialSign(mintKeypair);
 
-  return { transaction, mintPath: mintKeypair.publicKey.toBase58(), mintKeypair };
+  return {
+    transaction,
+    mintPath: mintKeypair.publicKey.toBase58(),
+    mintKeypair,
+  };
 }

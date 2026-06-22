@@ -1,4 +1,12 @@
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+} from "firebase/firestore";
 import { db } from "./config";
 import { logger } from "../logger";
 
@@ -45,7 +53,7 @@ export async function getTrendingTokens() {
   const tokensRef = collection(db, "tokens");
   // Trending can just be latest for now, or ordered by upvotes
   const q = query(tokensRef, orderBy("createdAt", "desc"), limit(10));
-  
+
   const querySnapshot = await getDocs(q);
   const tokens: Record<string, unknown>[] = [];
   querySnapshot.forEach((doc) => {

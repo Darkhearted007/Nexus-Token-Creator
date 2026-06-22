@@ -1,17 +1,17 @@
-import { 
-  PublicKey, 
-  Transaction, 
-  Connection, 
-  SystemProgram 
-} from '@solana/web3.js';
-import { 
-  getAssociatedTokenAddress, 
-  createAssociatedTokenAccountInstruction, 
+import {
+  PublicKey,
+  Transaction,
+  Connection,
+  SystemProgram,
+} from "@solana/web3.js";
+import {
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   getAccount,
   TokenAccountNotFoundError,
-  TokenInvalidAccountOwnerError
-} from '@solana/spl-token';
+  TokenInvalidAccountOwnerError,
+} from "@solana/spl-token";
 
 export interface AirdropRecipient {
   address: PublicKey;
@@ -23,7 +23,9 @@ export interface AirdropRecipient {
  * Format: "Address, Amount" or "Address Amount" or "Address;Amount"
  */
 export function parseAirdropFile(rawContent: string): AirdropRecipient[] {
-  const lines = rawContent.split(/\r?\n/).filter(line => line.trim().length > 0);
+  const lines = rawContent
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
   const recipients: AirdropRecipient[] = [];
 
   for (const line of lines) {
@@ -34,7 +36,7 @@ export function parseAirdropFile(rawContent: string): AirdropRecipient[] {
       try {
         recipients.push({
           address: new PublicKey(match[1]),
-          amount: parseFloat(match[2])
+          amount: parseFloat(match[2]),
         });
       } catch (e) {
         console.warn(`Skipping invalid address in line: ${line}`);
@@ -58,23 +60,29 @@ export async function buildAirdropBatches(
 ): Promise<Transaction[]> {
   const transactions: Transaction[] = [];
   const INSTRUCTIONS_PER_TX = 7; // Small to avoid size limits (ATA + Transfer = 2 per recipient)
-  
+
   // 1. Get sender's token account
   const senderTokenAccount = await getAssociatedTokenAddress(tokenMint, sender);
 
   for (let i = 0; i < recipients.length; i += INSTRUCTIONS_PER_TX) {
     const batch = recipients.slice(i, i + INSTRUCTIONS_PER_TX);
     const tx = new Transaction();
-    
+
     for (const recipient of batch) {
-      const recipientAta = await getAssociatedTokenAddress(tokenMint, recipient.address);
-      
+      const recipientAta = await getAssociatedTokenAddress(
+        tokenMint,
+        recipient.address
+      );
+
       // Check if recipient ATA exists
       let ataExists = true;
       try {
         await getAccount(connection, recipientAta);
       } catch (error) {
-        if (error instanceof TokenAccountNotFoundError || error instanceof TokenInvalidAccountOwnerError) {
+        if (
+          error instanceof TokenAccountNotFoundError ||
+          error instanceof TokenInvalidAccountOwnerError
+        ) {
           ataExists = false;
         } else {
           throw error;
@@ -92,7 +100,9 @@ export async function buildAirdropBatches(
         );
       }
 
-      const amountInBase = Math.floor(recipient.amount * Math.pow(10, decimals));
+      const amountInBase = Math.floor(
+        recipient.amount * Math.pow(10, decimals)
+      );
       tx.add(
         createTransferInstruction(
           senderTokenAccount,
@@ -102,7 +112,7 @@ export async function buildAirdropBatches(
         )
       );
     }
-    
+
     tx.feePayer = sender;
     tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
     transactions.push(tx);

@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * @fileoverview Rate limiting middleware for API endpoints
  * Copyright © 2026 NexusChain. All rights reserved.
- * 
+ *
  * Proprietary - Unauthorized use or reverse-engineering prohibited.
  */
 
@@ -18,32 +18,29 @@ const store: RateLimitStore = {};
  * Format: requestsPerMinute
  */
 const LIMITS: Record<string, number> = {
-  '/api/health': 1000, // Very permissive for health checks
-  '/api/mint': 10, // Strict on token minting
-  '/api/bots': 5, // Very strict on bot endpoints
-  'default': 100, // Default: 100 req/min per IP
+  "/api/health": 1000, // Very permissive for health checks
+  "/api/mint": 10, // Strict on token minting
+  "/api/bots": 5, // Very strict on bot endpoints
+  default: 100, // Default: 100 req/min per IP
 };
 
 function getClientId(request: NextRequest): string {
   return (
-    request.headers.get('cf-connecting-ip') ||
-    request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown'
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
   );
 }
 
 function getPathKey(pathname: string): string {
-  return pathname.split('/').slice(0, 3).join('/');
+  return pathname.split("/").slice(0, 3).join("/");
 }
 
-export function rateLimitMiddleware(
-  request: NextRequest,
-  pathname: string
-) {
+export function rateLimitMiddleware(request: NextRequest, pathname: string) {
   const clientId = getClientId(request);
   const pathKey = getPathKey(pathname);
-  const limit = LIMITS[pathKey] || LIMITS['default'];
+  const limit = LIMITS[pathKey] || LIMITS["default"];
   const key = `${clientId}:${pathKey}`;
   const now = Date.now();
 
@@ -62,11 +59,14 @@ export function rateLimitMiddleware(
   // Check limit
   if (bucket.count >= limit) {
     return NextResponse.json(
-      { error: 'Rate limit exceeded. Maximum ' + limit + ' requests per minute.' },
+      {
+        error:
+          "Rate limit exceeded. Maximum " + limit + " requests per minute.",
+      },
       {
         status: 429,
         headers: {
-          'Retry-After': String(Math.ceil((bucket.resetAt - now) / 1000)),
+          "Retry-After": String(Math.ceil((bucket.resetAt - now) / 1000)),
         },
       }
     );

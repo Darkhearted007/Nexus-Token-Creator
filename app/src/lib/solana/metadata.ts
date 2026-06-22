@@ -1,6 +1,4 @@
-import {
-  createUmi
-} from "@metaplex-foundation/umi-bundle-defaults";
+import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 
 import {
   createV1,
@@ -9,10 +7,7 @@ import {
   updateV1,
 } from "@metaplex-foundation/mpl-token-metadata";
 
-import {
-  signerIdentity,
-  publicKey,
-} from "@metaplex-foundation/umi";
+import { signerIdentity, publicKey } from "@metaplex-foundation/umi";
 
 import { PublicKey } from "@solana/web3.js";
 
