@@ -17,7 +17,8 @@ import {
   Loader2
 } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
+import { saveTokenToFirestore } from '@/lib/firebase/firestore';
 
 const STRATEGIES = [
   { id: 'natural', name: 'Natural Growth', desc: 'Mimics real human trading patterns', icon: TrendingUp },
@@ -76,15 +77,40 @@ export default function MarketMaker() {
   const handleStart = async () => {
     if (!publicKey) return alert('Please connect your Solana wallet first!');
     if (!tokenAddress) return alert('Please enter a token address');
+
+    // Validate that the entered address is a well-formed Solana public key
+    let validMint: PublicKey;
+    try {
+      validMint = new PublicKey(tokenAddress);
+    } catch {
+      return alert('Invalid token address — please enter a valid Solana mint address.');
+    }
+
     if (balance !== null && balance < SERVICE_COST) {
       alert(`Insufficient funds. Your balance is ${balance.toFixed(4)} SOL, but you need at least ${SERVICE_COST} SOL.`);
       return;
     }
     
     setIsLaunching(true);
-    // Simulate transaction delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
+    try {
+      // Write to Firestore so the backend listener picks it up and runs the volume bot
+      await saveTokenToFirestore({
+        mintAddress: validMint.toBase58(),
+        creatorWallet: publicKey.toBase58(),
+        name: 'Market Maker Session',
+        symbol: '',
+        decimals: 9,
+        supply: 0,
+        hasVolumeBot: true,
+        volumeBotTier: SERVICE_COST,
+      });
+    } catch (err) {
+      setIsLaunching(false);
+      console.error('Failed to register market maker session', err);
+      return alert('Failed to start session — could not reach the backend. Please try again.');
+    }
+
     setIsLaunching(false);
     setIsRunning(true);
     setActiveTab('active');
