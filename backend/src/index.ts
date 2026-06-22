@@ -97,18 +97,50 @@ async function main() {
             let hours = 1;
             if (data.volumeBotTier >= 0.3) hours = 6;
             if (data.volumeBotTier >= 0.5) hours = 24;
-            runVolumeBot(data.mintAddress, hours).catch((err) =>
-              logger.error("Volume Bot crashed", err)
-            );
+            runVolumeBot(data.mintAddress, hours)
+              .then(() =>
+                auditLogger.logBotExecution(
+                  "VOLUME",
+                  data.mintAddress,
+                  { tier: data.volumeBotTier, hours },
+                  true
+                )
+              )
+              .catch((err) => {
+                logger.error("Volume Bot crashed", err);
+                auditLogger.logBotExecution(
+                  "VOLUME",
+                  data.mintAddress,
+                  { tier: data.volumeBotTier, hours },
+                  false,
+                  String(err)
+                );
+              });
           }
 
           if (data.sniperBotTier && data.sniperBotTier > 0) {
             logger.info(
               `Sniper Bot triggered (tier: ${data.sniperBotTier} SOL)`
             );
-            runSniperBot(data.mintAddress, data.sniperBotTier).catch((err) =>
-              logger.error("Sniper Bot crashed", err)
-            );
+            runSniperBot(data.mintAddress, data.sniperBotTier)
+              .then(() =>
+                auditLogger.logBotExecution(
+                  "SNIPER",
+                  data.mintAddress,
+                  { tier: data.sniperBotTier },
+                  true
+                )
+              )
+              .catch((err) => {
+                logger.error("Sniper Bot crashed", err);
+                auditLogger.logBotExecution(
+                  "SNIPER",
+                  data.mintAddress,
+                  { tier: data.sniperBotTier },
+                  false,
+                  String(err)
+                );
+              });
           }
         }
       });

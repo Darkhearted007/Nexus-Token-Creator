@@ -15,19 +15,19 @@ import {
   Connection,
   Keypair,
   PublicKey,
-  Transaction,
+  VersionedTransaction,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
-import {
-  getAssociatedTokenAddress,
-  createAssociatedTokenAccountInstruction,
-  getAccount,
-} from "@solana/spl-token";
+import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
 import bs58 from "bs58";
 import dotenv from "dotenv";
 import { logger } from "../logger";
 
 dotenv.config();
+
+const JUPITER_QUOTE_API = "https://quote-api.jup.ag/v6/quote";
+const JUPITER_SWAP_API = "https://quote-api.jup.ag/v6/swap";
+const SOL_MINT = "So11111111111111111111111111111111111111112";
 
 const MAX_RETRIES = 5;
 const BASE_RETRY_DELAY_MS = 10_000;
@@ -94,25 +94,109 @@ export async function runVolumeBot(mintAddress: string, durationHours: number) {
         return;
       }
 
-      // 2. Randomise Action (Buy vs Sell)
-      const action = Math.random() > 0.5 ? "BUY" : "SELL";
-      const amount = (Math.random() * 0.1 + 0.01).toFixed(4);
-      logger.info(`[Volume Bot] Action: ${action} ${amount} units`);
+      // 2. Randomise Action (Buy vs Sell) with weighted buy bias on low holdings
+      const action = Math.random() > 0.45 ? "BUY" : "SELL";
+      logger.info(`[Volume Bot] Action: ${action}`);
 
-      /**
-       * STRUCTURAL NOTE: In a production environment with Raydium/Jupiter SDKs,
-       * you would construct a swap instruction here.
-       *
-       * Example (Conceptual):
-       * const { swapInstruction } = await Jupiter.getSwapInstruction({
-       *    inputMint: action === 'BUY' ? SOL_MINT : tokenMint,
-       *    outputMint: action === 'BUY' ? tokenMint : SOL_MINT,
-       *    amount: amountInBaseUnits,
-       *    userPublicKey: botKeypair.publicKey,
-       * });
-       */
+      const solPerBuy = parseFloat(
+        process.env.VOLUME_BOT_SOL_PER_BUY ?? "0.05"
+      );
 
-      logger.info(`[Volume Bot] Transaction sent to network (placeholder).`);
+      let inputMint: string;
+      let outputMint: string;
+      let swapAmount: number;
+
+      if (action === "BUY") {
+        inputMint = SOL_MINT;
+        outputMint = tokenMint.toBase58();
+        swapAmount = Math.floor(solPerBuy * LAMPORTS_PER_SOL);
+      } else {
+        // Check bot's token holdings before attempting a sell
+        const tokenAccount = await getAssociatedTokenAddress(
+          tokenMint,
+          botKeypair.publicKey
+        );
+        try {
+          const accountInfo = await getAccount(connection, tokenAccount);
+          if (accountInfo.amount === 0n) {
+            logger.info(
+              "[Volume Bot] No tokens to sell — converting to BUY tick."
+            );
+            inputMint = SOL_MINT;
+            outputMint = tokenMint.toBase58();
+            swapAmount = Math.floor(solPerBuy * LAMPORTS_PER_SOL);
+          } else {
+            // Sell roughly half the held balance for organic-looking volume
+            swapAmount = Number(accountInfo.amount / 2n) || 1;
+            inputMint = tokenMint.toBase58();
+            outputMint = SOL_MINT;
+          }
+        } catch {
+          // Token account not yet initialised — buy instead
+          logger.info(
+            "[Volume Bot] Token account not found — converting to BUY tick."
+          );
+          inputMint = SOL_MINT;
+          outputMint = tokenMint.toBase58();
+          swapAmount = Math.floor(solPerBuy * LAMPORTS_PER_SOL);
+        }
+      }
+
+      // 3. Get a swap quote from Jupiter v6
+      const quoteParams = new URLSearchParams({
+        inputMint,
+        outputMint,
+        amount: swapAmount.toString(),
+        slippageBps: "100", // 1 % slippage
+      });
+
+      const quoteResp = await fetch(`${JUPITER_QUOTE_API}?${quoteParams}`);
+      if (!quoteResp.ok) {
+        throw new Error(
+          `Jupiter quote HTTP ${quoteResp.status}: ${await quoteResp.text()}`
+        );
+      }
+      const quote = await quoteResp.json();
+      if (quote.error) {
+        throw new Error(`Jupiter quote error: ${quote.error}`);
+      }
+
+      // 4. Fetch the serialised swap transaction from Jupiter
+      const swapResp = await fetch(JUPITER_SWAP_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quoteResponse: quote,
+          userPublicKey: botKeypair.publicKey.toBase58(),
+          wrapAndUnwrapSol: true,
+          computeUnitPriceMicroLamports: parseInt(
+            process.env.COMPUTE_UNIT_PRICE_MICRO_LAMPORTS ?? "50000"
+          ),
+        }),
+      });
+      if (!swapResp.ok) {
+        throw new Error(
+          `Jupiter swap HTTP ${swapResp.status}: ${await swapResp.text()}`
+        );
+      }
+      const swapData = await swapResp.json();
+      if (swapData.error) {
+        throw new Error(`Jupiter swap error: ${swapData.error}`);
+      }
+
+      // 5. Deserialise → sign → send
+      const txBuffer = Buffer.from(swapData.swapTransaction, "base64");
+      const tx = VersionedTransaction.deserialize(txBuffer);
+      tx.sign([botKeypair]);
+
+      const signature = await connection.sendRawTransaction(tx.serialize(), {
+        skipPreflight: false,
+        maxRetries: 3,
+      });
+
+      logger.info(`[Volume Bot] Swap sent: ${signature}`);
+      await connection.confirmTransaction(signature, "confirmed");
+      logger.info(`[Volume Bot] Swap confirmed: ${signature}`);
     }, "Volume Bot Tick");
 
     // 4. Randomised Delay for Organic Pattern
