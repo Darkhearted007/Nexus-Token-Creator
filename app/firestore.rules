@@ -37,5 +37,27 @@ service cloud.firestore {
       
       allow delete: if false; // Only admin backend can delete
     }
+
+    match /market_maker_sessions/{sessionId} {
+      // Anyone can read their own session status
+      allow read: if true;
+
+      // Client may create a session in 'pending' state with required fields
+      allow create: if request.resource.data.keys().hasAll(['mintAddress', 'creatorWallet', 'strategy', 'duration', 'volumeSol', 'status', 'createdAt'])
+                    && request.resource.data.mintAddress is string && request.resource.data.mintAddress.size() >= 32 && request.resource.data.mintAddress.size() <= 44
+                    && request.resource.data.creatorWallet is string && request.resource.data.creatorWallet.size() >= 32 && request.resource.data.creatorWallet.size() <= 44
+                    && request.resource.data.strategy is string && request.resource.data.strategy.size() > 0
+                    && request.resource.data.duration is number && request.resource.data.duration > 0
+                    && request.resource.data.volumeSol is number && request.resource.data.volumeSol > 0
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.createdAt == request.time;
+
+      // Client may only stop a session (pending or running → stopped); all other updates are admin-only
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+                    && request.resource.data.status == 'stopped'
+                    && (resource.data.status == 'pending' || resource.data.status == 'running');
+
+      allow delete: if false;
+    }
   }
 }

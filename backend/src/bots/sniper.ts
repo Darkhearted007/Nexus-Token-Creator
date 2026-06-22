@@ -21,6 +21,7 @@ import {
 } from "@solana/web3.js";
 import bs58 from "bs58";
 import dotenv from "dotenv";
+import { logger } from "../logger";
 
 dotenv.config();
 
@@ -39,11 +40,15 @@ const ROUTE_POLL_INTERVAL_MS = 2_000;
  * executes a buy immediately with high-priority compute fees.
  */
 export async function runSniperBot(mintAddress: string, tierCost: number) {
+  // Validate address early so the function throws before allocating resources
+  new PublicKey(mintAddress);
+
   const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
   const connection = new Connection(rpcUrl, "confirmed");
 
-  console.log(`[Sniper Bot] 🎯 Initiating Sniper for Mint: ${mintAddress}`);
-  console.log(`- Tier: ${tierCost} SOL`);
+  logger.info(`[Sniper Bot] Initiating Sniper for Mint: ${mintAddress}`, {
+    tier: tierCost,
+  });
 
   // Load sub-wallets for distributed sniping
   const walletsRaw = process.env.SNIPER_BOT_PRIVATE_KEYS;
@@ -65,8 +70,8 @@ export async function runSniperBot(mintAddress: string, tierCost: number) {
 
   const walletsToUse = subWallets.slice(0, activeWalletCount);
 
-  console.log(
-    `[Sniper Bot] ⚡ Deploying ${walletsToUse.length} sub-wallet(s) for target acquisition...`
+  logger.info(
+    `[Sniper Bot] Deploying ${walletsToUse.length} sub-wallet(s) for target acquisition`
   );
 
   /**
@@ -85,7 +90,7 @@ export async function runSniperBot(mintAddress: string, tierCost: number) {
       );
       const minRequired = 0.02 * LAMPORTS_PER_SOL + jitoTipLamports;
       if (balance < minRequired) {
-        console.warn(`[Sniper Bot] ⚠️ ${label} has insufficient funds.`);
+        logger.warn(`[Sniper Bot] ${label} has insufficient funds.`);
         return;
       }
 
@@ -94,7 +99,7 @@ export async function runSniperBot(mintAddress: string, tierCost: number) {
       const deadline = Date.now() + SNIPE_TIMEOUT_MS;
       let quote: Record<string, unknown> | null = null;
 
-      console.log(`[Sniper Bot] 🔍 ${label} — waiting for Jupiter route...`);
+      logger.info(`[Sniper Bot] ${label} — waiting for Jupiter route...`);
 
       while (Date.now() < deadline) {
         const quoteParams = new URLSearchParams({
@@ -121,13 +126,13 @@ export async function runSniperBot(mintAddress: string, tierCost: number) {
       }
 
       if (!quote) {
-        console.warn(
-          `[Sniper Bot] ⏰ ${label} — no route found within timeout. Aborting.`
+        logger.warn(
+          `[Sniper Bot] ${label} — no route found within timeout. Aborting.`
         );
         return;
       }
 
-      console.log(`[Sniper Bot] ✅ ${label} — route found! Executing snipe.`);
+      logger.info(`[Sniper Bot] ${label} — route found! Executing snipe.`);
 
       // 3. Get the serialised swap transaction from Jupiter with high priority
       const swapResp = await fetch(JUPITER_SWAP_API, {
@@ -137,10 +142,8 @@ export async function runSniperBot(mintAddress: string, tierCost: number) {
           quoteResponse: quote,
           userPublicKey: wallet.publicKey.toBase58(),
           wrapAndUnwrapSol: true,
-          // Use aggressive priority to land the tx quickly
+          // Use aggressive compute unit price for fast block inclusion
           computeUnitPriceMicroLamports: 200_000,
-          // Include a Jito tip as a dedicated transfer instruction
-          jitoTipLamports,
         }),
       });
 
@@ -164,18 +167,16 @@ export async function runSniperBot(mintAddress: string, tierCost: number) {
         maxRetries: 3,
       });
 
-      console.log(`[Sniper Bot] 🚀 ${label} — snipe sent: ${signature}`);
+      logger.info(`[Sniper Bot] ${label} — snipe sent: ${signature}`);
       await connection.confirmTransaction(signature, "confirmed");
-      console.log(`[Sniper Bot] ✅ ${label} — snipe confirmed: ${signature}`);
+      logger.info(`[Sniper Bot] ${label} — snipe confirmed: ${signature}`);
     } catch (err) {
-      console.error(`[Sniper Bot] ❌ ${label} failed:`, err);
+      logger.error(`[Sniper Bot] ${label} failed`, err);
     }
   };
 
   // Execute sniping sequence across all assigned wallets
-  const tokenMintPk = new PublicKey(mintAddress); // validate address early
-  void tokenMintPk; // used for validation side-effect
   await Promise.all(walletsToUse.map((w, i) => executeSnipe(w, i)));
 
-  console.log(`[Sniper Bot] 🛡️ Snipe sequence complete for ${mintAddress}.`);
+  logger.info(`[Sniper Bot] Snipe sequence complete for ${mintAddress}.`);
 }
