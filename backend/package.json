@@ -1,14 +1,24 @@
 {
-  "name": "backend",
+  "name": "@nexuschain/backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "NexusChain Backend — Proprietary Bot Orchestration (Copyright © 2026 NexusChain)",
+  "main": "src/index.ts",
+  "author": "NexusChain",
+  "license": "ISC",
+  "private": true,
+  "publishConfig": {
+    "access": "restricted"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "solana",
+    "bot",
+    "volume-bot",
+    "sniper-bot",
+    "proprietary"
+  ],
   "type": "commonjs",
   "dependencies": {
     "@solana/spl-token": "^0.4.14",

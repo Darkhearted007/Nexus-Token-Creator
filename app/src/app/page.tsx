@@ -7,6 +7,9 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { buildMintTransaction } from '@/lib/solana/mint';
 import { saveTokenToFirestore } from '@/lib/firebase/firestore';
+import { useToast } from '@/components/ToastProvider';
+import { validateTokenForm, sanitizeString } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 const VOLUME_TIERS = [
   { label: 'None', cost: 0 },
@@ -23,7 +26,9 @@ const SNIPER_TIERS = [
 ];
 
 export default function TokenLaunchpad() {
+  const { addToast } = useToast();
   const [mounted, setMounted] = useState(false);
+  const [formErrors, setFormErrors] = useState<string[]>([]);
   const [form, setForm] = useState({ 
     name: '', symbol: '', decimals: 9, supply: 1000000000, 
     website: '', twitter: '', telegram: '',
@@ -63,62 +68,86 @@ export default function TokenLaunchpad() {
 
   const handleCreateToken = async () => {
     if (!publicKey) {
-      alert('Please connect your Solana wallet first!');
+      addToast('Please connect your Solana wallet first.', 'error');
       return;
     }
+
+    // Client-side validation
+    const errors = validateTokenForm(form);
+    setFormErrors(errors);
+    if (errors.length > 0) {
+      addToast(errors[0], 'error');
+      return;
+    }
+
     if (balance !== null && balance < parseFloat(totalCost)) {
-      alert(`Insufficient funds. You have ${balance.toFixed(4)} SOL, but need ${totalCost} SOL.`);
+      addToast(`Insufficient funds. You have ${balance.toFixed(4)} SOL but need ${totalCost} SOL.`, 'error');
       return;
     }
+
+    // Sanitize user-provided strings before submitting
+    const sanitizedForm = {
+      ...form,
+      name: sanitizeString(form.name),
+      symbol: sanitizeString(form.symbol).toUpperCase(),
+      website: form.website.trim(),
+      twitter: form.twitter.trim(),
+      telegram: form.telegram.trim(),
+    };
+
     try {
       setIsMinting(true);
       const { transaction, mintPath, mintKeypair } = await buildMintTransaction(
         connection,
         publicKey,
-        form.decimals,
-        form.supply,
-        form.volumeBotTier,
-        form.sniperBotTier,
-        form.revokeMint,
-        form.revokeFreeze,
-        form.revokeUpdate
+        sanitizedForm.decimals,
+        sanitizedForm.supply,
+        sanitizedForm.volumeBotTier,
+        sanitizedForm.sniperBotTier,
+        sanitizedForm.revokeMint,
+        sanitizedForm.revokeFreeze,
+        sanitizedForm.revokeUpdate
       );
       
       const signature = await sendTransaction(transaction, connection, {
         signers: [mintKeypair]
       });
 
-      await connection.confirmTransaction(signature, 'processed');
+      // Use 'confirmed' for stronger finality guarantee (was 'processed')
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
 
       setSuccessData({ mint: mintPath });
+      addToast('Token deployed successfully!', 'success');
 
       // Save token metadata to Web2 Backend (Firebase) for UI Indexing & Trending
       try {
         await saveTokenToFirestore({
           mintAddress: mintPath,
           creatorWallet: publicKey.toBase58(),
-          name: form.name,
-          symbol: form.symbol,
-          decimals: form.decimals,
-          supply: form.supply,
-          hasVolumeBot: form.volumeBotTier > 0,
-          volumeBotTier: form.volumeBotTier,
-          sniperBotTier: form.sniperBotTier,
+          name: sanitizedForm.name,
+          symbol: sanitizedForm.symbol,
+          decimals: sanitizedForm.decimals,
+          supply: sanitizedForm.supply,
+          hasVolumeBot: sanitizedForm.volumeBotTier > 0,
+          volumeBotTier: sanitizedForm.volumeBotTier,
+          sniperBotTier: sanitizedForm.sniperBotTier,
           totalRevenue: totalCost,
-          website: form.website,
-          twitter: form.twitter,
-          telegram: form.telegram,
-          mintRevoked: form.revokeMint,
-          freezeRevoked: form.revokeFreeze,
-          updateRevoked: form.revokeUpdate
+          website: sanitizedForm.website,
+          twitter: sanitizedForm.twitter,
+          telegram: sanitizedForm.telegram,
+          mintRevoked: sanitizedForm.revokeMint,
+          freezeRevoked: sanitizedForm.revokeFreeze,
+          updateRevoked: sanitizedForm.revokeUpdate
         });
       } catch (fbErr) {
-        console.warn('Firebase analytics save skipped:', fbErr);
+        logger.warn('Firebase analytics save skipped', fbErr);
       }
 
     } catch (err) {
-      console.error(err);
-      alert('Failed to mint token: ' + (err as Error).message);
+      logger.error('Token mint failed', err);
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      addToast(`Failed to mint token: ${msg}`, 'error');
     } finally {
       setIsMinting(false);
     }
@@ -133,8 +162,8 @@ export default function TokenLaunchpad() {
   return (
     <div className="relative min-h-screen pt-32 pb-20 overflow-hidden">
       {/* Background Orbs */}
-      <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px] -z-10 animate-pulse" />
-      <div className="absolute top-1/3 right-1/4 w-[400px] h-[400px] bg-indigo-500/20 rounded-full blur-[120px] -z-10 animate-pulse delay-700" />
+      <div className="absolute top-1/4 left-1/4 w-125 h-125 bg-purple-600/20 rounded-full blur-[120px] -z-10 animate-pulse" />
+      <div className="absolute top-1/3 right-1/4 w-100 h-100 bg-indigo-500/20 rounded-full blur-[120px] -z-10 animate-pulse delay-700" />
 
       <div className="container mx-auto px-6 max-w-5xl">
         <motion.div 
@@ -142,7 +171,7 @@ export default function TokenLaunchpad() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-16"
         >
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-300 to-blue-400">
+          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 text-transparent bg-clip-text bg-linear-to-r from-purple-400 via-indigo-300 to-blue-400">
             Launch Your Token
           </h1>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
@@ -156,7 +185,7 @@ export default function TokenLaunchpad() {
           transition={{ delay: 0.1 }}
           className="max-w-2xl mx-auto"
         >
-          <div className="p-[1px] rounded-3xl bg-gradient-to-b from-white/10 to-transparent">
+          <div className="p-px rounded-3xl bg-linear-to-b from-white/10 to-transparent">
             <div className="bg-gray-900/80 backdrop-blur-xl p-8 rounded-[23px] border border-white/5 shadow-2xl">
               <div className="flex items-center gap-3 mb-8 pb-6 border-b border-white/10">
                 <div className="p-3 bg-indigo-500/20 rounded-lg">
@@ -168,6 +197,16 @@ export default function TokenLaunchpad() {
                 </div>
               </div>
 
+              {formErrors.length > 0 && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <ul className="list-disc list-inside space-y-1">
+                    {formErrors.map((e, i) => (
+                      <li key={i} className="text-sm text-red-400">{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {successData && (
                 <div className="mb-8 p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-center shadow-[0_0_40px_rgba(16,185,129,0.2)]">
                   <h3 className="text-xl font-bold text-emerald-400 mb-2">🚀 Token Deployed Successfully!</h3>
@@ -176,7 +215,7 @@ export default function TokenLaunchpad() {
                     href={`https://raydium.io/swap/?outputCurrency=${successData.mint}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-block px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-400 text-black font-extrabold rounded-xl hover:scale-105 transition-transform shadow-lg"
+                    className="inline-block px-6 py-3 bg-linear-to-r from-emerald-500 to-emerald-400 text-black font-extrabold rounded-xl hover:scale-105 transition-transform shadow-lg"
                   >
                     Deposit Liquidity on Raydium
                   </a>
@@ -190,9 +229,10 @@ export default function TokenLaunchpad() {
                     <input 
                       type="text" 
                       placeholder="e.g. Nexus Coin"
+                      maxLength={64}
                       className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                       value={form.name}
-                      onChange={(e) => setForm({...form, name: e.target.value})}
+                      onChange={(e) => { setFormErrors([]); setForm({...form, name: e.target.value}); }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -200,9 +240,10 @@ export default function TokenLaunchpad() {
                     <input 
                       type="text" 
                       placeholder="e.g. NEXUS"
+                      maxLength={12}
                       className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                       value={form.symbol}
-                      onChange={(e) => setForm({...form, symbol: e.target.value})}
+                      onChange={(e) => { setFormErrors([]); setForm({...form, symbol: e.target.value.toUpperCase()}); }}
                     />
                   </div>
                 </div>
@@ -211,19 +252,23 @@ export default function TokenLaunchpad() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-300">Decimals</label>
                     <input 
-                      type="number" 
+                      type="number"
+                      min={0}
+                      max={18}
+                      step={1}
                       className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                       value={form.decimals}
-                      onChange={(e) => setForm({...form, decimals: Number(e.target.value)})}
+                      onChange={(e) => { setFormErrors([]); setForm({...form, decimals: Number(e.target.value)}); }}
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-300">Total Supply</label>
                     <input 
-                      type="number" 
+                      type="number"
+                      min={1}
                       className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                       value={form.supply}
-                      onChange={(e) => setForm({...form, supply: Number(e.target.value)})}
+                      onChange={(e) => { setFormErrors([]); setForm({...form, supply: Number(e.target.value)}); }}
                     />
                   </div>
                 </div>
@@ -390,8 +435,8 @@ export default function TokenLaunchpad() {
                   <button 
                     onClick={handleCreateToken}
                     disabled={isMinting || (balance !== null && balance < parseFloat(totalCost))}
-                    className="w-full group relative inline-flex items-center justify-between px-8 py-4 font-bold text-white transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl hover:from-purple-500 hover:to-indigo-500 hover:shadow-[0_0_40px_rgba(99,102,241,0.4)] overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed">
-                    <div className="absolute inset-0 w-1/4 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[200%] group-hover:animate-[shimmer_2s_infinite]" />
+                    className="w-full group relative inline-flex items-center justify-between px-8 py-4 font-bold text-white transition-all duration-200 bg-linear-to-r from-purple-600 to-indigo-600 rounded-xl hover:from-purple-500 hover:to-indigo-500 hover:shadow-[0_0_40px_rgba(99,102,241,0.4)] overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed">
+                    <div className="absolute inset-0 w-1/4 h-full bg-linear-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover:animate-[shimmer_2s_infinite]" />
                     <span className="relative flex items-center gap-2">
                       {isMinting ? (
                         <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white/50 border-t-white"></span>

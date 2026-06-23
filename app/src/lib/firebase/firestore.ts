@@ -1,5 +1,6 @@
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "./config";
+import { logger } from "../logger";
 
 export interface TokenRecord {
   mintAddress: string;
@@ -25,21 +26,17 @@ export interface TokenRecord {
 }
 
 export async function saveTokenToFirestore(data: TokenRecord) {
+  const tokensRef = collection(db, "tokens");
   try {
-    const tokensRef = collection(db, "tokens");
     const docRef = await addDoc(tokensRef, {
       ...data,
       createdAt: serverTimestamp(),
       upvotes: 0,
     });
-    console.log("Token metadata saved to Firebase with ID: ", docRef.id);
+    logger.info("Token metadata saved to Firebase", { id: docRef.id });
     return docRef.id;
   } catch (e) {
-    console.error("Firebase Error - adding document: ", e);
-    // Suppress throw on demo key so UI doesn't crash during testing
-    if (process.env.NODE_ENV !== "production") {
-       return "demo-id-123";
-    }
+    logger.error("Firebase Error - adding document", e);
     throw e;
   }
 }

@@ -1,0 +1,33 @@
+# CODEOWNERS — Code Review & Approval Requirements
+# Enforces that key files require review from designated maintainers
+# GitHub enforces these rules on protected branches
+
+# Default: All code changes
+* @Darkhearted007
+
+# Smart Contract (Proprietary)
+programs/ @Darkhearted007
+
+# Bot Algorithms (Proprietary)
+backend/src/bots/ @Darkhearted007
+
+# Security-Critical
+SECURITY.md @Darkhearted007
+.github/workflows/ @Darkhearted007
+Dockerfile @Darkhearted007
+docker-compose.yml @Darkhearted007
+
+# Configuration
+app/firebase.json @Darkhearted007
+backend/.env.example @Darkhearted007
+Anchor.toml @Darkhearted007
+
+# Documentation & Legal
+README.md @Darkhearted007
+LICENSE @Darkhearted007
+PRODUCTION_CHECKLIST.md @Darkhearted007
+
+# Package Metadata
+package.json @Darkhearted007
+app/package.json @Darkhearted007
+backend/package.json @Darkhearted007

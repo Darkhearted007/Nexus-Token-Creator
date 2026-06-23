@@ -1,3 +1,17 @@
+/**
+ * @fileoverview Sniper Bot — Bundle Execution Algorithm
+ * @copyright 2026 NexusChain. All rights reserved.
+ * 
+ * PROPRIETARY CODE — Unauthorized use or reverse-engineering prohibited.
+ * 
+ * This module implements NexusChain's proprietary sniper bot that executes
+ * bundle purchases at block 0 to prevent MEV sandwich attacks. Extracting or
+ * reusing this algorithm for competing services constitutes violation of
+ * intellectual property rights.
+ * 
+ * For inquiries: legal@nexuschain.dev
+ */
+
 import { 
     Connection, 
     Keypair, 

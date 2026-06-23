@@ -1,0 +1,73 @@
+# npm Package Ignore List
+# Files excluded from npm publish
+
+# Development & testing
+test/
+tests/
+*.test.ts
+*.spec.ts
+.env*
+.env.local
+.env.*.local
+
+# CI/CD & Build
+.github/
+.gitlab-ci.yml
+.circleci/
+.travis.yml
+Dockerfile
+docker-compose.yml
+
+# Documentation (keep only critical)
+CONTRIBUTING.md
+DEVELOPMENT.md
+
+# Source maps & build artifacts
+dist/
+build/
+.turbo/
+*.map
+
+# IDE & local
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
+.prettierignore
+
+# Sensitive
+private_keys/
+secrets/
+credentials/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# OS
+node_modules/
+.yarn/
+.pnp
+pnpm-lock.yaml
+yarn.lock
+
+# Solana/Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# Configuration
+tsconfig.json
+eslint.config.mjs
+prettier.config.js
+Anchor.toml
+rust-toolchain.toml
+
+# Root files
+SECURITY.md
+PRODUCTION_CHECKLIST.md
+LICENSE
+CODEOWNERS

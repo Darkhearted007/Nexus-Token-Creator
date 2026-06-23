@@ -6,6 +6,26 @@ Live App: **[nexus-token-creator.web.app](https://nexus-token-creator.web.app)**
 
 ---
 
+## ⚖️ Intellectual Property Notice
+
+**Copyright © 2026 NexusChain. All rights reserved.**
+
+This repository contains **proprietary code** in addition to open-source components. Please review our complete IP policy:
+
+- **[SECURITY.md](SECURITY.md)** — Vulnerability disclosure & proprietary code restrictions
+- **[TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)** — Usage terms & IP enforcement
+- **[LICENSE](LICENSE)** — MIT license applies only to explicitly open-source components
+
+**Key Restrictions**:
+- ❌ **Do NOT** extract or reuse volume/sniper bot algorithms
+- ❌ **Do NOT** reverse-engineer the smart contract for competing services
+- ❌ **Do NOT** use "NexusChain" branding without permission
+- ✅ **DO** audit the code and report security issues
+- ✅ **DO** deploy tokens using our service
+- ✅ **DO** read the code for educational purposes
+
+---
+
 ## Features
 
 | Feature | Description |

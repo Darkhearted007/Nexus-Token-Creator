@@ -1,0 +1,42 @@
+# Backend npm Package Ignore List
+
+.env*
+.env.local
+*.private.key
+private_keys/
+credentials/
+
+# Source maps
+*.js.map
+*.ts
+
+# Development
+*.test.ts
+*.spec.ts
+test/
+tests/
+
+# Build artifacts
+dist/
+build/
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Documentation
+README.md
+CONTRIBUTING.md
+
+# Configuration
+.prettierrc
+.eslintrc
+tsconfig.json
+
+# OS
+.DS_Store
+node_modules/

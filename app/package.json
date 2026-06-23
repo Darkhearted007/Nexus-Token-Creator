@@ -1,6 +1,9 @@
 {
-  "name": "app",
+  "name": "@nexuschain/app",
   "version": "0.1.0",
+  "description": "NexusChain Frontend — Solana Token Launchpad (Copyright © 2026 NexusChain)",
+  "author": "NexusChain",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "next dev",

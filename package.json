@@ -1,9 +1,26 @@
 {
+  "name": "nexus-token-creator",
+  "version": "1.0.0",
+  "description": "NexusChain — Solana Token Launchpad (Copyright © 2026 NexusChain)",
   "license": "ISC",
+  "private": true,
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
+  "author": "NexusChain",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Darkhearted007/Nexus-Token-Creator"
+  },
+  "keywords": [
+    "solana",
+    "token",
+    "launchpad",
+    "spl",
+    "blockchain",
+    "web3"
+  ],
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1"
   },

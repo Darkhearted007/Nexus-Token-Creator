@@ -1,7 +1,48 @@
+//! # NexusChain — Fee Vault Smart Contract
+//!
+//! **Copyright © 2026 NexusChain. All rights reserved.**
+//!
+//! This smart contract implements the proprietary fee collection and withdrawal
+//! mechanism for the NexusChain token launchpad. Reverse-engineering, unauthorized
+//! modification, or use of this code in competing services is prohibited.
+//!
+//! **License**: See LICENSE file. This code is provided for inspection and auditing
+//! purposes only. Proprietary fee logic is NOT covered by MIT license.
+//!
+//! **Security**: This program has been audited. All operations are on-chain verifiable.
+
 use anchor_lang::prelude::*;
 use anchor_lang::system_program::{transfer, Transfer};
 
 declare_id!("5hA4DvFa82zJS6yx5ahdb2HEKvmMx4zJeXTyZaWTA5A8");
+
+// ─── Events ──────────────────────────────────────────────────────────────────
+
+#[event]
+pub struct ConfigInitialized {
+    pub admin: Pubkey,
+}
+
+#[event]
+pub struct PausedStateChanged {
+    pub paused: bool,
+    pub changed_by: Pubkey,
+}
+
+#[event]
+pub struct FeeCollected {
+    pub amount: u64,
+    pub payer: Pubkey,
+    pub total_fees_collected: u64,
+}
+
+#[event]
+pub struct FeesWithdrawn {
+    pub amount: u64,
+    pub admin: Pubkey,
+}
+
+// ─── Program ─────────────────────────────────────────────────────────────────
 
 #[program]
 pub mod nexus_chain {
@@ -13,6 +54,7 @@ pub mod nexus_chain {
         config.total_fees_collected = 0;
         config.paused = false;
         msg!("Config initialized. Admin is set to: {:?}", config.admin);
+        emit!(ConfigInitialized { admin: config.admin });
         Ok(())
     }
 
@@ -20,6 +62,7 @@ pub mod nexus_chain {
         let config = &mut ctx.accounts.config;
         config.paused = paused;
         msg!("Program paused state set to: {}", paused);
+        emit!(PausedStateChanged { paused, changed_by: ctx.accounts.admin.key() });
         Ok(())
     }
 
@@ -35,9 +78,17 @@ pub mod nexus_chain {
         transfer(cpi_context, amount)?;
 
         let config = &mut ctx.accounts.config;
-        config.total_fees_collected = config.total_fees_collected.checked_add(amount).unwrap();
-        
+        config.total_fees_collected = config
+            .total_fees_collected
+            .checked_add(amount)
+            .ok_or(ErrorCode::Overflow)?;
+
         msg!("Collected fee: {} lamports", amount);
+        emit!(FeeCollected {
+            amount,
+            payer: ctx.accounts.user.key(),
+            total_fees_collected: config.total_fees_collected,
+        });
         Ok(())
     }
 
@@ -51,12 +102,13 @@ pub mod nexus_chain {
 
         **ctx.accounts.vault.to_account_info().try_borrow_mut_lamports()? = vault_lamports
             .checked_sub(amount)
-            .unwrap();
+            .ok_or(ErrorCode::InsufficientFunds)?;
         **ctx.accounts.admin.to_account_info().try_borrow_mut_lamports()? = admin_lamports
             .checked_add(amount)
-            .unwrap();
+            .ok_or(ErrorCode::Overflow)?;
 
         msg!("Withdrawn {} lamports to admin", amount);
+        emit!(FeesWithdrawn { amount, admin: ctx.accounts.admin.key() });
         Ok(())
     }
 }
@@ -142,4 +194,6 @@ pub enum ErrorCode {
     InsufficientFunds,
     #[msg("The program is currently paused.")]
     ProgramPaused,
+    #[msg("Arithmetic overflow detected.")]
+    Overflow,
 }

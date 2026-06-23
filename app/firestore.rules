@@ -30,8 +30,9 @@ service cloud.firestore {
                     && (!('twitter' in request.resource.data) || (request.resource.data.twitter is string && request.resource.data.twitter.size() <= 200))
                     && (!('telegram' in request.resource.data) || (request.resource.data.telegram is string && request.resource.data.telegram.size() <= 200));
                     
-      // Only allow upvotes to be incremented to prevent malicious overwrites
+      // Only allow upvotes to increment by exactly 1; no other fields may change
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes'])
+                    && request.resource.data.diff(resource.data).affectedKeys().size() == 1
                     && request.resource.data.upvotes == resource.data.upvotes + 1;
       
       allow delete: if false; // Only admin backend can delete
